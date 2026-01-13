@@ -1,0 +1,477 @@
+-- // CHEST HUB CORE LOGIC (UPLOAD THIS TO GITHUB) //
+
+-- 1. RECEIVE USER SETTINGS
+local UserSettings = getgenv().UserConfig or {}
+
+-- 2. MERGE SETTINGS (User Settings + Defaults for the rest)
+local Config = {
+    -- User Controlled (Will be overwritten by your local script)
+    TweenSpeed = UserSettings.TweenSpeed or 350,
+    CollectionWait = UserSettings.CollectionWait or 0.35,
+    AFKMode = (UserSettings.AFKMode ~= nil and UserSettings.AFKMode) or true,
+    FastMode = (UserSettings.FastMode ~= nil and UserSettings.FastMode) or true,
+    StopOnRareItem = (UserSettings.StopOnRareItem ~= nil and UserSettings.StopOnRareItem) or true,
+    FarmChests = (UserSettings.FarmChests ~= nil and UserSettings.FarmChests) or true,
+
+    -- Core Defaults (Hidden from your local script)
+    HopDelay = 5,
+    FarmFruit = true,            -- Logic default: Always snipe fruits
+    MinGroupRank = 2,            
+    AdminGroupID = 4372130,      
+    CircleRadius = 600,          
+    IslandBlacklistRadius = 600, 
+    MaxFarmDistance = 4000       
+}
+
+-- // SERVICES //
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Player = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local VirtualUser = game:GetService("VirtualUser")
+local CoreGui = game:GetService("CoreGui")
+
+local Stats = { Chests = 0, ZonesDone = 0 }
+local VisitedChests = {} 
+local FinishedIslandPositions = {} 
+local Farming = true 
+local IsMoving = false 
+local StartTime = os.time()
+local StartMoney = 0
+local StartPosition = nil
+local ChestRetryCounter = 0 
+local RareItems = {"God's Chalice", "Fist of Darkness"}
+local IsAFK = Config.AFKMode 
+
+-- // HOP VARIABLES //
+local PlaceID = game.PlaceId
+local AllIDs = {}
+local foundAnything = ""
+local actualHour = os.date("!*t").hour
+
+-- // HOP FILE SETUP //
+local function SetupHopFile()
+    pcall(function()
+        if not isfile("NotSameServers.json") then
+            writefile("NotSameServers.json", HttpService:JSONEncode({actualHour}))
+        else
+            AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json"))
+            if tonumber(AllIDs[1]) ~= actualHour then
+                 AllIDs = {actualHour}
+                 writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs))
+            end
+        end
+    end)
+end
+SetupHopFile()
+
+-- Safe Load
+if not Player then Player = Players.PlayerAdded:Wait() end
+pcall(function() StartMoney = Player.Data.Beli.Value end)
+pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
+
+-- // ANTI-IDLE //
+Player.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+end)
+
+-- // AUTO REJOIN //
+task.spawn(function()
+    CoreGui.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
+        if child.Name == 'ErrorPrompt' then
+            task.wait(2)
+            TeleportService:Teleport(game.PlaceId, Player)
+        end
+    end)
+end)
+
+-- // UI SETUP //
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ChestHub_Final_V10"
+ScreenGui.IgnoreGuiInset = true 
+if gethui then ScreenGui.Parent = gethui() else ScreenGui.Parent = CoreGui end
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "StatsFrame"
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
+MainFrame.Size = UDim2.new(0, 160, 0, 0) 
+MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+MainFrame.ZIndex = 2 
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Parent = MainFrame
+UIStroke.Color = Color3.fromRGB(255, 60, 60)
+UIStroke.Thickness = 1
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 6)
+UICorner.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = MainFrame
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 2) 
+
+local UIPadding = Instance.new("UIPadding")
+UIPadding.Parent = MainFrame
+UIPadding.PaddingTop = UDim.new(0, 8)
+UIPadding.PaddingLeft = UDim.new(0, 8)
+UIPadding.PaddingRight = UDim.new(0, 8)
+UIPadding.PaddingBottom = UDim.new(0, 8)
+
+local function createLabel(text, order, color, fontOverride)
+    local Label = Instance.new("TextLabel")
+    Label.Parent = MainFrame
+    Label.BackgroundTransparency = 1
+    Label.Size = UDim2.new(1, 0, 0, 14) 
+    Label.Font = fontOverride or Enum.Font.GothamBold
+    Label.Text = text
+    Label.TextColor3 = color or Color3.fromRGB(255, 255, 255)
+    Label.TextSize = 11 
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.LayoutOrder = order
+    Label.ZIndex = 2
+    return Label
+end
+
+local TitleLbl = createLabel("CHEST HUB V2", 0, Color3.fromRGB(255, 60, 60), Enum.Font.GothamBlack)
+local ChestsLbl = createLabel("Chests: 0", 1, Color3.fromRGB(255, 170, 0))
+local FruitLbl = createLabel("Fruit: None", 2, Color3.fromRGB(255, 85, 255))
+local TimerLbl = createLabel("Timer: 00:00:00", 3, Color3.fromRGB(200, 200, 200))
+local ZonesLbl = createLabel("Zones Done: 0", 4, Color3.fromRGB(0, 255, 255))
+local EarnedLbl = createLabel("Earned: $0", 5, Color3.fromRGB(85, 255, 127))
+local StatusLbl = createLabel("Status: Active", 6, Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack)
+
+local Spacer = Instance.new("Frame")
+Spacer.BackgroundTransparency = 1
+Spacer.Size = UDim2.new(1, 0, 0, 4)
+Spacer.LayoutOrder = 7
+Spacer.Parent = MainFrame
+
+local BtnRow1 = Instance.new("Frame")
+BtnRow1.BackgroundTransparency = 1
+BtnRow1.Size = UDim2.new(1, 0, 0, 20)
+BtnRow1.LayoutOrder = 8
+BtnRow1.Parent = MainFrame
+BtnRow1.ZIndex = 2
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Parent = BtnRow1
+ToggleBtn.Text = "ON"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.Size = UDim2.new(0.48, 0, 1, 0)
+ToggleBtn.Font = Enum.Font.GothamBlack
+ToggleBtn.TextSize = 10
+ToggleBtn.ZIndex = 2
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 4)
+
+local HopBtn = Instance.new("TextButton")
+HopBtn.Parent = BtnRow1
+HopBtn.Text = "HOP"
+HopBtn.BackgroundColor3 = Color3.fromRGB(45, 120, 255)
+HopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+HopBtn.Position = UDim2.new(0.52, 0, 0, 0)
+HopBtn.Size = UDim2.new(0.48, 0, 1, 0)
+HopBtn.Font = Enum.Font.GothamBlack
+HopBtn.TextSize = 10
+HopBtn.ZIndex = 2
+Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 4)
+
+local Spacer2 = Instance.new("Frame")
+Spacer2.BackgroundTransparency = 1
+Spacer2.Size = UDim2.new(1, 0, 0, 2)
+Spacer2.LayoutOrder = 9
+Spacer2.Parent = MainFrame
+
+local BtnRow2 = Instance.new("Frame")
+BtnRow2.BackgroundTransparency = 1
+BtnRow2.Size = UDim2.new(1, 0, 0, 20)
+BtnRow2.LayoutOrder = 10
+BtnRow2.Parent = MainFrame
+BtnRow2.ZIndex = 2
+
+local AFKBtn = Instance.new("TextButton")
+AFKBtn.Parent = BtnRow2
+AFKBtn.Text = Config.AFKMode and "AFK: ON" or "AFK: OFF"
+AFKBtn.BackgroundColor3 = Config.AFKMode and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(60, 60, 60)
+AFKBtn.TextColor3 = Config.AFKMode and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
+AFKBtn.Size = UDim2.new(1, 0, 1, 0)
+AFKBtn.Font = Enum.Font.GothamBlack
+AFKBtn.TextSize = 10
+AFKBtn.ZIndex = 2
+Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 4)
+
+-- // AFK LOGIC //
+local BlurFrame = Instance.new("Frame")
+BlurFrame.Name = "AFKOverlay"
+BlurFrame.Parent = ScreenGui
+BlurFrame.Size = UDim2.new(1, 0, 1, 0)
+BlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BlurFrame.BackgroundTransparency = Config.AFKMode and 0 or 1 
+BlurFrame.Visible = Config.AFKMode 
+BlurFrame.ZIndex = 1 
+
+if Config.AFKMode then pcall(function() RunService:Set3dRenderingEnabled(false) end) end
+
+local function ToggleAFK()
+    IsAFK = not IsAFK
+    AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
+    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(60, 60, 60)
+    AFKBtn.TextColor3 = IsAFK and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
+    
+    BlurFrame.Visible = IsAFK
+    BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
+    pcall(function() RunService:Set3dRenderingEnabled(not IsAFK) end)
+end
+
+-- // FAST MODE //
+task.spawn(function()
+    if Config.FastMode then
+        task.wait(1)
+        pcall(function()
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 9e9
+            for _, v in pairs(Workspace:GetDescendants()) do
+                if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic v.CastShadow = false end
+                if v:IsA("Texture") or v:IsA("Decal") then v.Transparency = 1 end
+            end
+        end)
+    end
+end)
+
+-- // SERVER HOP //
+local function ServerHop()
+    StatusLbl.Text = "Smart Hopping..."
+    task.wait(Config.HopDelay)
+    
+    SetupHopFile()
+    
+    local function FetchAndHop()
+        local Site
+        if foundAnything == "" then
+            Site = HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'))
+        else
+            Site = HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. foundAnything))
+        end
+        
+        if Site.nextPageCursor and Site.nextPageCursor ~= "null" then
+            foundAnything = Site.nextPageCursor
+        end
+        
+        for _, v in pairs(Site.data) do
+            local ID = tostring(v.id)
+            if tonumber(v.maxPlayers) > tonumber(v.playing) and tonumber(v.playing) >= 2 then
+                local Possible = true
+                for _, Existing in pairs(AllIDs) do
+                    if ID == tostring(Existing) then
+                        Possible = false
+                        break
+                    end
+                end
+                
+                if Possible then
+                    StatusLbl.Text = "Found: " .. v.playing .. " Plrs"
+                    table.insert(AllIDs, ID)
+                    pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+                    TeleportService:TeleportToPlaceInstance(PlaceID, ID, Player)
+                    return
+                end
+            end
+        end
+        
+        StatusLbl.Text = "Scanning Next Page..."
+        task.wait(0.1)
+        FetchAndHop()
+    end
+    pcall(FetchAndHop)
+end
+
+local function CheckAdmin()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player then
+            local success, rank = pcall(function() return p:GetRankInGroup(Config.AdminGroupID) end)
+            if success and rank > Config.MinGroupRank then
+                StatusLbl.Text = "ADMIN!"
+                StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+                Farming = false
+                task.wait(0.5)
+                ServerHop()
+            end
+        end
+    end
+end
+
+local function CheckRareItems()
+    if not Config.StopOnRareItem then return false end
+    for _, name in pairs(RareItems) do
+        if Player.Backpack:FindFirstChild(name) or Player.Character:FindFirstChild(name) then
+            Farming = false
+            StatusLbl.Text = "ITEM FOUND!"
+            StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+            ToggleBtn.Text = "PAUSED"
+            return true
+        end
+    end
+    return false
+end
+
+local function StoreFruit(fruitInstance)
+    if not fruitInstance then return end
+    local char = Player.Character
+    local cleanName = fruitInstance.Name:gsub(" Fruit", "")
+    StatusLbl.Text = "Store: " .. cleanName
+    
+    if fruitInstance.Parent == Player.Backpack then 
+        fruitInstance.Parent = char 
+        task.wait(0.5) 
+    end
+    
+    local args = { 
+        [1] = "StoreFruit", 
+        [2] = fruitInstance:GetAttribute("OriginalName") or fruitInstance.Name, 
+        [3] = fruitInstance 
+    }
+    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StoreFruit", args[2], args[3]) end)
+    
+    if fruitInstance.Parent == char then
+        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StoreFruit", cleanName, fruitInstance) end)
+    end
+    task.wait(0.5)
+    StatusLbl.Text = "Status: Active"
+end
+
+local function FarmLoop()
+    if not Farming or IsMoving then return end
+    CheckAdmin()
+    if CheckRareItems() then return end
+
+    local root = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    if not StartPosition then StartPosition = root.Position end
+
+    -- 1. FRUIT SNIPER
+    if Config.FarmFruit then
+        for _, v in pairs(Workspace:GetChildren()) do
+            if v:IsA("Tool") and v.Name:find("Fruit") and v:FindFirstChild("Handle") then
+                local fName = v.Name:gsub(" Fruit", "")
+                StatusLbl.Text = "Sniping..."
+                FruitLbl.Text = "Fruit: " .. fName 
+                root.CFrame = v.Handle.CFrame 
+                if v.Handle:FindFirstChild("TouchInterest") then
+                    firetouchinterest(root, v.Handle, 0)
+                    firetouchinterest(root, v.Handle, 1)
+                end
+                task.wait(0.3)
+                local picked = Player.Backpack:FindFirstChild(v.Name) or Player.Character:FindFirstChild(v.Name)
+                if picked then StoreFruit(picked) FruitLbl.Text = "Stored: " .. fName end
+                return 
+            end
+        end
+    end
+
+    -- 2. CHEST FARMING
+    local target, minDist = nil, math.huge
+    if Config.FarmChests then
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") and v:FindFirstChild("TouchInterest") then
+                local blacklisted = false
+                for _, pos in pairs(FinishedIslandPositions) do
+                    if (v.Position - pos).Magnitude < Config.IslandBlacklistRadius then blacklisted = true break end
+                end
+                local distFromStart = (v.Position - StartPosition).Magnitude
+                if distFromStart < Config.MaxFarmDistance and not VisitedChests[v] and not blacklisted then
+                    local d = (root.Position - v.Position).Magnitude
+                    if d < minDist then target, minDist = v, d end
+                end
+            end
+        end
+    end
+
+    if target then
+        ChestRetryCounter = 0 
+        local dist = math.floor((root.Position - target.Position).Magnitude)
+        StatusLbl.Text = "Travel: " .. dist .. "m"
+        IsMoving = true
+        
+        local tween
+        if math.abs(root.Position.Y - target.Position.Y) > 800 then
+            root.CFrame = target.CFrame; task.wait(0.5)
+        else
+            tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+            tween:Play()
+            while tween.PlaybackState == Enum.PlaybackState.Playing do
+                if not Farming then tween:Cancel() IsMoving = false return end
+                if root and target then
+                    local currentDist = math.floor((root.Position - target.Position).Magnitude)
+                    StatusLbl.Text = "Travel: " .. currentDist .. "m"
+                end
+                task.wait()
+            end
+        end
+        IsMoving = false
+        StatusLbl.Text = "Collecting..."
+        
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if not Farming then return end 
+            if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") and (v.Position - target.Position).Magnitude < Config.CircleRadius then
+                if not VisitedChests[v] then
+                    VisitedChests[v] = true 
+                    root.CFrame = v.CFrame 
+                    task.wait(Config.CollectionWait)
+                    Stats.Chests = Stats.Chests + 1
+                    ChestsLbl.Text = "Chests: " .. Stats.Chests 
+                end
+            end
+        end
+        table.insert(FinishedIslandPositions, target.Position)
+        Stats.ZonesDone = Stats.ZonesDone + 1
+        ZonesLbl.Text = "Zones Done: " .. Stats.ZonesDone
+    else
+        ChestRetryCounter = ChestRetryCounter + 1
+        StatusLbl.Text = "Search: " .. ChestRetryCounter .. "/5"
+        if ChestRetryCounter >= 5 then ServerHop() end
+    end
+end
+
+-- // HANDLERS //
+ToggleBtn.MouseButton1Click:Connect(function()
+    Farming = not Farming
+    ToggleBtn.Text = Farming and "ON" or "OFF"
+    ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    StatusLbl.Text = Farming and "Status: Active" or "Status: Paused"
+    if Farming and Player.Character then StartPosition = Player.Character.HumanoidRootPart.Position end
+end)
+HopBtn.MouseButton1Click:Connect(ServerHop)
+AFKBtn.MouseButton1Click:Connect(ToggleAFK)
+Players.PlayerAdded:Connect(CheckAdmin)
+
+-- // MAIN LOOPS //
+task.spawn(function()
+    while true do
+        local secs = os.time() - StartTime
+        TimerLbl.Text = string.format("Timer: %02d:%02d:%02d", math.floor(secs/3600), math.floor((secs%3600)/60), secs%60)
+        if Player.Data and Player.Data.Beli then EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) end
+        CheckAdmin()
+        task.wait(1)
+    end
+end)
+
+task.spawn(function() while true do if Farming then pcall(FarmLoop) end task.wait(0.5) end end)
+RunService.Stepped:Connect(function() 
+    if Farming and Player.Character then 
+        for _,v in pairs(Player.Character:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = false end end 
+    end 
+end)
