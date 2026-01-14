@@ -1,32 +1,9 @@
--- // CHEST HUB CORE LOGIC (UPLOAD THIS TO GITHUB) //
+-- // ULTIMATE CHEST HUB V2 (CORE LOGIC - FIXED FOR MOBILE) //
+-- // UPLOAD THIS TO GITHUB //
 
--- 1. RECEIVE USER SETTINGS
-local UserSettings = getgenv().UserConfig or {}
-
--- 2. MERGE SETTINGS (User Settings + Defaults for the rest)
-local Config = {
-    -- User Controlled (Will be overwritten by your local script)
-    TweenSpeed = UserSettings.TweenSpeed or 350,
-    CollectionWait = UserSettings.CollectionWait or 0.35,
-    AFKMode = (UserSettings.AFKMode ~= nil and UserSettings.AFKMode) or true,
-    FastMode = (UserSettings.FastMode ~= nil and UserSettings.FastMode) or true,
-    StopOnRareItem = (UserSettings.StopOnRareItem ~= nil and UserSettings.StopOnRareItem) or true,
-    FarmChests = (UserSettings.FarmChests ~= nil and UserSettings.FarmChests) or true,
-
-    -- Core Defaults (Hidden from your local script)
-    HopDelay = 5,
-    FarmFruit = true,            -- Logic default: Always snipe fruits
-    MinGroupRank = 2,            
-    AdminGroupID = 4372130,      
-    CircleRadius = 600,          
-    IslandBlacklistRadius = 600, 
-    MaxFarmDistance = 4000       
-}
-
--- // SERVICES //
+-- 1. SERVICES (Moved to top to prevent crashes)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local Player = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
@@ -36,6 +13,37 @@ local Lighting = game:GetService("Lighting")
 local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 
+local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
+
+-- 2. RECEIVE & MERGE SETTINGS
+local UserSettings = getgenv().UserConfig or {}
+
+-- Helper function to safely get boolean settings (Fixes the "Can't turn off" bug)
+local function GetConfig(key, default)
+    if UserSettings[key] ~= nil then return UserSettings[key] end
+    return default
+end
+
+local Config = {
+    -- User Controlled
+    TweenSpeed = GetConfig("TweenSpeed", 350),
+    CollectionWait = GetConfig("CollectionWait", 0.35),
+    AFKMode = GetConfig("AFKMode", true),
+    FastMode = GetConfig("FastMode", true),
+    StopOnRareItem = GetConfig("StopOnRareItem", true),
+    FarmChests = GetConfig("FarmChests", true),
+
+    -- Core Defaults (Hidden)
+    HopDelay = 5,
+    FarmFruit = true,
+    MinGroupRank = 2,            
+    AdminGroupID = 4372130,      
+    CircleRadius = 600,          
+    IslandBlacklistRadius = 600, 
+    MaxFarmDistance = 4000       
+}
+
+-- 3. VARIABLES
 local Stats = { Chests = 0, ZonesDone = 0 }
 local VisitedChests = {} 
 local FinishedIslandPositions = {} 
@@ -47,14 +55,12 @@ local StartPosition = nil
 local ChestRetryCounter = 0 
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local IsAFK = Config.AFKMode 
-
--- // HOP VARIABLES //
 local PlaceID = game.PlaceId
 local AllIDs = {}
 local foundAnything = ""
 local actualHour = os.date("!*t").hour
 
--- // HOP FILE SETUP //
+-- 4. HOP FILE SETUP (Safe Write)
 local function SetupHopFile()
     pcall(function()
         if not isfile("NotSameServers.json") then
@@ -71,7 +77,6 @@ end
 SetupHopFile()
 
 -- Safe Load
-if not Player then Player = Players.PlayerAdded:Wait() end
 pcall(function() StartMoney = Player.Data.Beli.Value end)
 pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
 
@@ -84,20 +89,42 @@ end)
 
 -- // AUTO REJOIN //
 task.spawn(function()
-    CoreGui.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
-        if child.Name == 'ErrorPrompt' then
-            task.wait(2)
-            TeleportService:Teleport(game.PlaceId, Player)
-        end
-    end)
+    if CoreGui:FindFirstChild("RobloxPromptGui") then
+        CoreGui.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
+            if child.Name == 'ErrorPrompt' then
+                task.wait(2)
+                TeleportService:Teleport(game.PlaceId, Player)
+            end
+        end)
+    end
 end)
 
--- // UI SETUP //
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ChestHub_Final_V10"
-ScreenGui.IgnoreGuiInset = true 
-if gethui then ScreenGui.Parent = gethui() else ScreenGui.Parent = CoreGui end
+-- // UI SETUP (CODEX COMPATIBLE) //
+-- Cleanup
+pcall(function()
+    if Player:FindFirstChild("PlayerGui") then
+        for _, v in pairs(Player.PlayerGui:GetChildren()) do if v.Name == "ChestHub_Core" then v:Destroy() end end
+    end
+    for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "ChestHub_Core" then v:Destroy() end end
+end)
 
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ChestHub_Core"
+ScreenGui.IgnoreGuiInset = true 
+-- Force PlayerGui for Codex Mobile
+ScreenGui.Parent = Player:WaitForChild("PlayerGui") 
+
+-- AFK OVERLAY (Black Screen only, no Render Disable)
+local BlurFrame = Instance.new("Frame")
+BlurFrame.Name = "AFKOverlay"
+BlurFrame.Parent = ScreenGui
+BlurFrame.Size = UDim2.new(1, 0, 1, 0)
+BlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BlurFrame.BackgroundTransparency = Config.AFKMode and 0 or 1 
+BlurFrame.Visible = Config.AFKMode 
+BlurFrame.ZIndex = 1 
+
+-- MAIN FRAME
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "StatsFrame"
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -108,7 +135,7 @@ MainFrame.AutomaticSize = Enum.AutomaticSize.Y
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
-MainFrame.ZIndex = 2 
+MainFrame.ZIndex = 5 
 
 local UIStroke = Instance.new("UIStroke")
 UIStroke.Parent = MainFrame
@@ -142,7 +169,7 @@ local function createLabel(text, order, color, fontOverride)
     Label.TextSize = 11 
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.LayoutOrder = order
-    Label.ZIndex = 2
+    Label.ZIndex = 6
     return Label
 end
 
@@ -165,7 +192,7 @@ BtnRow1.BackgroundTransparency = 1
 BtnRow1.Size = UDim2.new(1, 0, 0, 20)
 BtnRow1.LayoutOrder = 8
 BtnRow1.Parent = MainFrame
-BtnRow1.ZIndex = 2
+BtnRow1.ZIndex = 6
 
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Parent = BtnRow1
@@ -175,7 +202,7 @@ ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.Size = UDim2.new(0.48, 0, 1, 0)
 ToggleBtn.Font = Enum.Font.GothamBlack
 ToggleBtn.TextSize = 10
-ToggleBtn.ZIndex = 2
+ToggleBtn.ZIndex = 6
 Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 4)
 
 local HopBtn = Instance.new("TextButton")
@@ -187,7 +214,7 @@ HopBtn.Position = UDim2.new(0.52, 0, 0, 0)
 HopBtn.Size = UDim2.new(0.48, 0, 1, 0)
 HopBtn.Font = Enum.Font.GothamBlack
 HopBtn.TextSize = 10
-HopBtn.ZIndex = 2
+HopBtn.ZIndex = 6
 Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 4)
 
 local Spacer2 = Instance.new("Frame")
@@ -201,7 +228,7 @@ BtnRow2.BackgroundTransparency = 1
 BtnRow2.Size = UDim2.new(1, 0, 0, 20)
 BtnRow2.LayoutOrder = 10
 BtnRow2.Parent = MainFrame
-BtnRow2.ZIndex = 2
+BtnRow2.ZIndex = 6
 
 local AFKBtn = Instance.new("TextButton")
 AFKBtn.Parent = BtnRow2
@@ -211,21 +238,10 @@ AFKBtn.TextColor3 = Config.AFKMode and Color3.fromRGB(0, 0, 0) or Color3.fromRGB
 AFKBtn.Size = UDim2.new(1, 0, 1, 0)
 AFKBtn.Font = Enum.Font.GothamBlack
 AFKBtn.TextSize = 10
-AFKBtn.ZIndex = 2
+AFKBtn.ZIndex = 6
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 4)
 
--- // AFK LOGIC //
-local BlurFrame = Instance.new("Frame")
-BlurFrame.Name = "AFKOverlay"
-BlurFrame.Parent = ScreenGui
-BlurFrame.Size = UDim2.new(1, 0, 1, 0)
-BlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-BlurFrame.BackgroundTransparency = Config.AFKMode and 0 or 1 
-BlurFrame.Visible = Config.AFKMode 
-BlurFrame.ZIndex = 1 
-
-if Config.AFKMode then pcall(function() RunService:Set3dRenderingEnabled(false) end) end
-
+-- // AFK TOGGLE FUNCTION //
 local function ToggleAFK()
     IsAFK = not IsAFK
     AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
@@ -234,7 +250,7 @@ local function ToggleAFK()
     
     BlurFrame.Visible = IsAFK
     BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
-    pcall(function() RunService:Set3dRenderingEnabled(not IsAFK) end)
+    -- Removed Set3dRenderingEnabled to prevent Mobile Freeze
 end
 
 -- // FAST MODE //
@@ -252,7 +268,7 @@ task.spawn(function()
     end
 end)
 
--- // SERVER HOP //
+-- // SERVER HOP (SMART MEMORY FILE) //
 local function ServerHop()
     StatusLbl.Text = "Smart Hopping..."
     task.wait(Config.HopDelay)
@@ -362,7 +378,7 @@ local function FarmLoop()
     if not root then return end
     if not StartPosition then StartPosition = root.Position end
 
-    -- 1. FRUIT SNIPER
+    -- 1. FRUIT SNIPER (Prioritized & Instant)
     if Config.FarmFruit then
         for _, v in pairs(Workspace:GetChildren()) do
             if v:IsA("Tool") and v.Name:find("Fruit") and v:FindFirstChild("Handle") then
