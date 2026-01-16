@@ -1,0 +1,200 @@
+-- BLOX FRUITS: MOON TIME MACHINE (VERIFIED FINAL)
+-- Logic Rechecked: "Active Moons" (Negative Time) are strictly prioritized as Option #1.
+-- Smart Delete: Active.
+
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local LP = Players.LocalPlayer
+
+-- CONSTANTS
+local FileName = "MoonDatabase_v3.json" 
+local FirstMoonAt = 55 * 60 
+local CycleDuration = 80 * 60 
+local MaxServerAge = 12 * 3600 -- 12 Hours (Best balance)
+
+-- [MANUAL DELETE]
+-- If a specific ID is stuck, paste it here to remove it once.
+local ManualDeleteID = "" 
+
+print("\n\n")
+print("========================================")
+print("🌑 MOON DATABASE: SYSTEM CHECKED")
+
+-- 1. DATABASE MANAGER
+local function LoadData()
+    if isfile(FileName) then
+        local content = readfile(FileName)
+        if content == "" or content == "[]" then return {} end
+        local success, result = pcall(function() return HttpService:JSONDecode(content) end)
+        if success and type(result) == "table" then return result else return {} end
+    end
+    return {}
+end
+
+local function SaveData(data)
+    writefile(FileName, HttpService:JSONEncode(data))
+end
+
+-- 2. SAVE & CLEANUP
+local db = LoadData()
+local currentJob = game.JobId
+local isPrivate = (game.PrivateServerId ~= "" and game.PrivateServerOwnerId ~= 0)
+
+-- Manual Delete Check
+if ManualDeleteID ~= "" and db[ManualDeleteID] then
+    db[ManualDeleteID] = nil
+    warn("🗑️ SUCCESS: Manually deleted ID: " .. ManualDeleteID)
+end
+
+-- Save Logic
+if isPrivate then
+    warn("⚠️ PRIVATE SERVER DETECTED. NOT SAVING.")
+else
+    if game.PlaceId > 0 and currentJob ~= "" then
+        local myUptime = workspace.DistributedGameTime
+        local serverRealStartTime = os.time() - myUptime
+        db[currentJob] = {
+            jobId = currentJob,
+            placeId = game.PlaceId,
+            startTime = serverRealStartTime, 
+            lastVisit = os.time() 
+        }
+        print("✅ Current Server Saved.")
+    end
+end
+
+-- Auto-Purge Logic
+local deleted = 0
+for id, info in pairs(db) do
+    local ageSeconds = os.time() - info.startTime
+    local lastSeen = os.time() - info.lastVisit
+    if ageSeconds > MaxServerAge or lastSeen > MaxServerAge then 
+        db[id] = nil 
+        deleted = deleted + 1
+    end
+end
+SaveData(db)
+
+-- 3. SCAN LOGIC (With "Backtracking" Support)
+local candidates = {}
+local scannedCount = 0
+
+for id, info in pairs(db) do
+    scannedCount = scannedCount + 1
+    
+    local predictedUptime = os.time() - info.startTime
+    local timeSinceFirst = predictedUptime - FirstMoonAt
+    
+    -- GRACE PERIOD LOGIC:
+    -- We subtract 300 seconds (5 mins) from the time.
+    -- This tricks the math into thinking the cycle hasn't changed yet,
+    -- allowing "Active Moons" to appear in the list instead of being skipped.
+    local effectiveTime = timeSinceFirst - 300 
+    
+    local cycles = math.ceil(effectiveTime / CycleDuration)
+    if timeSinceFirst < 0 then cycles = 0 end
+    
+    local nextFM_Uptime = FirstMoonAt + (cycles * CycleDuration)
+    local secondsLeft = nextFM_Uptime - predictedUptime
+    
+    local ageSecs = os.time() - info.startTime
+    local ageH = math.floor(ageSecs / 3600)
+    local ageM = math.floor((ageSecs % 3600) / 60)
+    
+    -- Allow servers where moon started up to 5 mins ago (-300s)
+    if secondsLeft > -300 then 
+        table.insert(candidates, {
+            jobId = info.jobId,
+            placeId = info.placeId,
+            waitSecs = secondsLeft,
+            waitMins = math.floor(secondsLeft / 60),
+            ageText = ageH .. "h " .. ageM .. "m"
+        })
+    end
+end
+
+-- SORTING: 
+-- Smallest number first. 
+-- -50 (Active) is smaller than 500 (Future). 
+-- This ensures the server you just left is ALWAYS #1.
+table.sort(candidates, function(a, b) return a.waitSecs < b.waitSecs end)
+
+-- 4. OUTPUT RESULTS
+print("📊 Database Size: " .. scannedCount)
+print("----------------------------------------")
+print("📍 YOUR CURRENT ID: " .. currentJob)
+print("----------------------------------------")
+
+if #candidates > 0 then
+    print("🏆 TOP 2 OPTIONS:")
+    
+    for i = 1, math.min(2, #candidates) do
+        local c = candidates[i]
+        local isCurrent = (c.jobId == currentJob)
+        local status = isCurrent and " (YOU ARE HERE)" or ""
+        
+        print("\nOPTION #" .. i .. status)
+        
+        if c.waitSecs <= 0 then
+            -- ACTIVE MOON ALERT
+            warn("🚨 STATUS: MOON IS ACTIVE RIGHT NOW! 🚨")
+            print("⏳ It started " .. math.abs(c.waitSecs) .. " seconds ago.")
+        else
+            -- FUTURE MOON
+            print("⏰ Full Moon In: " .. c.waitMins .. " mins")
+        end
+        
+        print("⏳ Server Age:   " .. c.ageText)
+        print("🆔 ID: " .. c.jobId)
+        
+        if not isCurrent then
+            -- SMART JOIN SCRIPT
+            local smartJoinScript = string.format([[
+local TP = game:GetService("TeleportService")
+local HS = game:GetService("HttpService")
+local ID = "%s"
+local FILE = "%s"
+local P = game.Players.LocalPlayer
+TP:TeleportToPlaceInstance(%d, ID, P)
+local conn
+conn = TP.TeleportInitFailed:Connect(function(plr, result, msg)
+    if plr == P then
+        warn("❌ JOIN FAILED: " .. tostring(result))
+        if result == Enum.TeleportResult.GameFull or result == Enum.TeleportResult.GameNotFound then
+            warn("🗑️ AUTO-DELETING BAD SERVER...")
+            if isfile(FILE) then
+                local raw = readfile(FILE)
+                local db = HS:JSONDecode(raw)
+                if db[ID] then
+                    db[ID] = nil
+                    writefile(FILE, HS:JSONEncode(db))
+                    warn("✅ DELETED! Re-run main script.")
+                end
+            end
+        end
+        conn:Disconnect()
+    end
+end)
+]], c.jobId, FileName, c.placeId)
+
+            if i == 1 and setclipboard then
+                setclipboard(smartJoinScript)
+                warn("✅ SMART SCRIPT COPIED TO CLIPBOARD!")
+                if c.waitSecs <= 0 then
+                    warn("🚀 GO BACK NOW! IT IS ACTIVE!")
+                end
+            elseif i == 2 then
+                warn("⬇️ Copy Option #2 manually:")
+            end
+            
+            if i == 2 then print(smartJoinScript) end
+        else
+            warn("✅ STAY HERE. BEST OPTION.")
+        end
+    end
+else
+    print("❌ No upcoming moons found. Hop to build database!")
+end
+print("========================================")
+print("\n")
