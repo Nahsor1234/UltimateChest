@@ -1,7 +1,3 @@
--- BLOX FRUITS: MOON TIME MACHINE (VISUAL ANCHOR EDITION)
--- Logic: Uses Visual Texture to "Anchor" the math, ignoring broken server clocks.
--- Feature: Top 2 Recommendations + Smart Delete.
-
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
