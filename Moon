@@ -1,25 +1,46 @@
--- BLOX FRUITS: MOON TIME MACHINE (VERIFIED FINAL)
--- Logic Rechecked: "Active Moons" (Negative Time) are strictly prioritized as Option #1.
--- Smart Delete: Active.
+-- BLOX FRUITS: MOON TIME MACHINE (VISUAL ANCHOR EDITION)
+-- Logic: Uses Visual Texture to "Anchor" the math, ignoring broken server clocks.
+-- Feature: Top 2 Recommendations + Smart Delete.
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
+local Lighting = game:GetService("Lighting")
 local LP = Players.LocalPlayer
 
 -- CONSTANTS
-local FileName = "MoonDatabase_v3.json" 
-local FirstMoonAt = 55 * 60 
-local CycleDuration = 80 * 60 
-local MaxServerAge = 12 * 3600 -- 12 Hours (Best balance)
+local FileName = "MoonDatabase_v4_Visual.json" -- New File for New Logic
+local CycleDuration = 80 * 60 -- Full Cycle is approx 80 mins
+local PhaseDuration = CycleDuration / 8 -- Approx 10 mins per phase
+local MaxServerAge = 12 * 3600 
 
--- [MANUAL DELETE]
--- If a specific ID is stuck, paste it here to remove it once.
-local ManualDeleteID = "" 
+-- MOON DATA (Texture = Phase Number)
+-- Phase 8 is FULL MOON. Phase 1 is Just after Full.
+local MoonMap = {
+    ["http://www.roblox.com/asset/?id=9709149431"] = 8, -- 🌕 Full Moon (Target)
+    ["http://www.roblox.com/asset/?id=9709149052"] = 7, -- 🌖 Waxing Gibbous
+    ["http://www.roblox.com/asset/?id=9709143733"] = 6, -- 🌗 Last Quarter
+    ["http://www.roblox.com/asset/?id=9709150401"] = 5, -- 🌘 Waning Crescent
+    ["http://www.roblox.com/asset/?id=9709135895"] = 4, -- 🌑 New Moon (0%)
+    ["http://www.roblox.com/asset/?id=9709139597"] = 3, -- 🌒 Waxing Crescent
+    ["http://www.roblox.com/asset/?id=9709150086"] = 2, -- 🌓 First Quarter
+    ["http://www.roblox.com/asset/?id=9709149680"] = 1, -- 🌔 Waning Gibbous
+}
+
+-- REVERSE LOOKUP: How many minutes until Phase 8 (Full Moon) from current Phase?
+-- Example: If Phase 7, we wait 1 Phase duration. If Phase 4, we wait 4.
+local function GetMinutesUntilFull(phaseNum)
+    if phaseNum == 8 then return 0 end -- It's active!
+    
+    -- Math: How many jumps to get to 8?
+    -- Phases go 1 -> 2 -> ... -> 8.
+    local jumpsNeeded = 8 - phaseNum
+    return jumpsNeeded * (PhaseDuration / 60) -- Returns minutes
+end
 
 print("\n\n")
 print("========================================")
-print("🌑 MOON DATABASE: SYSTEM CHECKED")
+print("🌑 MOON DATABASE: VISUAL ANCHOR SYSTEM")
 
 -- 1. DATABASE MANAGER
 local function LoadData()
@@ -36,125 +57,175 @@ local function SaveData(data)
     writefile(FileName, HttpService:JSONEncode(data))
 end
 
--- 2. SAVE & CLEANUP
+-- 2. "VISUAL ANCHOR" SAVE
 local db = LoadData()
 local currentJob = game.JobId
 local isPrivate = (game.PrivateServerId ~= "" and game.PrivateServerOwnerId ~= 0)
 
--- Manual Delete Check
-if ManualDeleteID ~= "" and db[ManualDeleteID] then
-    db[ManualDeleteID] = nil
-    warn("🗑️ SUCCESS: Manually deleted ID: " .. ManualDeleteID)
-end
-
--- Save Logic
 if isPrivate then
-    warn("⚠️ PRIVATE SERVER DETECTED. NOT SAVING.")
+    warn("⚠️ PRIVATE SERVER. NOT SAVING.")
 else
     if game.PlaceId > 0 and currentJob ~= "" then
-        local myUptime = workspace.DistributedGameTime
-        local serverRealStartTime = os.time() - myUptime
-        db[currentJob] = {
-            jobId = currentJob,
-            placeId = game.PlaceId,
-            startTime = serverRealStartTime, 
-            lastVisit = os.time() 
-        }
-        print("✅ Current Server Saved.")
+        
+        -- A. READ VISUALS
+        local currentTex = Lighting.Sky.MoonTextureId
+        local visualPhase = MoonMap[currentTex] or 0 -- 0 means Unknown
+        
+        -- B. CALCULATE ANCHOR POINT
+        -- Instead of saving "Server Start Time", we save "When we saw this Phase".
+        if visualPhase > 0 then
+            db[currentJob] = {
+                jobId = currentJob,
+                placeId = game.PlaceId,
+                
+                -- THE ANCHOR:
+                seenTime = os.time(),      -- "I saw the moon at this real world time..."
+                seenPhase = visualPhase,   -- "...and it was Phase X."
+                
+                visualCheck = true         -- Mark as "Visually Verified"
+            }
+            print("✅ VISUAL ANCHOR SAVED: Phase " .. visualPhase .. "/8")
+        else
+            -- Fallback: If sky texture is empty (Glitch/Day?), keep old data if exists
+            if not db[currentJob] then
+                print("⚠️ No Moon Texture found (Daytime?). Saving partial data.")
+                db[currentJob] = {
+                    jobId = currentJob,
+                    placeId = game.PlaceId,
+                    seenTime = os.time(),
+                    seenPhase = 0, -- Needs update later
+                    visualCheck = false
+                }
+            end
+        end
     end
 end
 
--- Auto-Purge Logic
+-- 3. CLEANUP
 local deleted = 0
 for id, info in pairs(db) do
-    local ageSeconds = os.time() - info.startTime
-    local lastSeen = os.time() - info.lastVisit
-    if ageSeconds > MaxServerAge or lastSeen > MaxServerAge then 
+    local age = os.time() - info.seenTime
+    if age > MaxServerAge then 
         db[id] = nil 
         deleted = deleted + 1
     end
 end
 SaveData(db)
 
--- 3. SCAN LOGIC (With "Backtracking" Support)
+-- 4. PREDICT & RANK
 local candidates = {}
 local scannedCount = 0
 
 for id, info in pairs(db) do
     scannedCount = scannedCount + 1
     
-    local predictedUptime = os.time() - info.startTime
-    local timeSinceFirst = predictedUptime - FirstMoonAt
+    local timePassed = os.time() - info.seenTime -- Seconds since we last saw it
+    local timePassedMins = timePassed / 60
     
-    -- GRACE PERIOD LOGIC:
-    -- We subtract 300 seconds (5 mins) from the time.
-    -- This tricks the math into thinking the cycle hasn't changed yet,
-    -- allowing "Active Moons" to appear in the list instead of being skipped.
-    local effectiveTime = timeSinceFirst - 300 
+    -- PREDICTION LOGIC
+    local predictedMinsLeft = 999
     
-    local cycles = math.ceil(effectiveTime / CycleDuration)
-    if timeSinceFirst < 0 then cycles = 0 end
+    if info.seenPhase > 0 then
+        -- We have visual data!
+        -- 1. Calculate how many minutes were left when we SAW it.
+        local initialWait = GetMinutesUntilFull(info.seenPhase)
+        
+        -- 2. Subtract time passed since then.
+        local currentWait = initialWait - timePassedMins
+        
+        -- 3. Handle cycles (If we waited past the full moon, when is the NEXT one?)
+        while currentWait < -5 do -- Allow 5 min active window
+            currentWait = currentWait + 80 -- Add full cycle (80 mins)
+        end
+        
+        predictedMinsLeft = currentWait
+    else
+        -- No visual data (Phase 0). We can't predict accurately.
+        predictedMinsLeft = 9999
+    end
     
-    local nextFM_Uptime = FirstMoonAt + (cycles * CycleDuration)
-    local secondsLeft = nextFM_Uptime - predictedUptime
+    -- Format Age
+    local ageH = math.floor(timePassed / 3600)
+    local ageM = math.floor((timePassed % 3600) / 60)
     
-    local ageSecs = os.time() - info.startTime
-    local ageH = math.floor(ageSecs / 3600)
-    local ageM = math.floor((ageSecs % 3600) / 60)
-    
-    -- Allow servers where moon started up to 5 mins ago (-300s)
-    if secondsLeft > -300 then 
+    if predictedMinsLeft < 900 then -- Only valid predictions
         table.insert(candidates, {
             jobId = info.jobId,
             placeId = info.placeId,
-            waitSecs = secondsLeft,
-            waitMins = math.floor(secondsLeft / 60),
-            ageText = ageH .. "h " .. ageM .. "m"
+            waitMins = math.floor(predictedMinsLeft),
+            waitSecs = math.floor(predictedMinsLeft * 60),
+            ageText = ageH .. "h " .. ageM .. "m",
+            phase = info.seenPhase
         })
     end
 end
 
--- SORTING: 
--- Smallest number first. 
--- -50 (Active) is smaller than 500 (Future). 
--- This ensures the server you just left is ALWAYS #1.
 table.sort(candidates, function(a, b) return a.waitSecs < b.waitSecs end)
 
--- 4. OUTPUT RESULTS
-print("📊 Database Size: " .. scannedCount)
+-- 5. OUTPUT
+print("📊 Servers Tracked: " .. scannedCount)
 print("----------------------------------------")
-print("📍 YOUR CURRENT ID: " .. currentJob)
+print("📍 CURRENT ID: " .. currentJob)
 print("----------------------------------------")
 
 if #candidates > 0 then
-    print("🏆 TOP 2 OPTIONS:")
+    print("🏆 TOP 2 VISUAL PREDICTIONS:")
     
     for i = 1, math.min(2, #candidates) do
         local c = candidates[i]
         local isCurrent = (c.jobId == currentJob)
-        local status = isCurrent and " (YOU ARE HERE)" or ""
         
-        print("\nOPTION #" .. i .. status)
+        print("\nOPTION #" .. i .. (isCurrent and " (HERE)" or ""))
         
         if c.waitSecs <= 0 then
-            -- ACTIVE MOON ALERT
-            warn("🚨 STATUS: MOON IS ACTIVE RIGHT NOW! 🚨")
-            print("⏳ It started " .. math.abs(c.waitSecs) .. " seconds ago.")
+            warn("🌕 STATUS: MOON SHOULD BE ACTIVE!")
+            print("⏳ Prediction: Started " .. math.abs(c.waitMins) .. " mins ago.")
         else
-            -- FUTURE MOON
-            print("⏰ Full Moon In: " .. c.waitMins .. " mins")
+            print("⏰ Full Moon In: ~" .. c.waitMins .. " mins")
         end
         
-        print("⏳ Server Age:   " .. c.ageText)
+        print("👁️ Based on Visual: Phase " .. c.phase .. "/8")
+        print("⏳ Data Age: " .. c.ageText .. " ago")
         print("🆔 ID: " .. c.jobId)
         
         if not isCurrent then
-            -- SMART JOIN SCRIPT
+            -- SMART DELETE SCRIPT
             local smartJoinScript = string.format([[
 local TP = game:GetService("TeleportService")
 local HS = game:GetService("HttpService")
 local ID = "%s"
 local FILE = "%s"
+local P = game.Players.LocalPlayer
+TP:TeleportToPlaceInstance(%d, ID, P)
+local conn
+conn = TP.TeleportInitFailed:Connect(function(plr, result, msg)
+    if plr == P then
+        warn("❌ JOIN FAILED")
+        if result == Enum.TeleportResult.GameFull or result == Enum.TeleportResult.GameNotFound then
+            if isfile(FILE) then
+                local raw = readfile(FILE)
+                local db = HS:JSONDecode(raw)
+                if db[ID] then
+                    db[ID] = nil
+                    writefile(FILE, HS:JSONEncode(db))
+                    warn("🗑️ DELETED BAD SERVER")
+                end
+            end
+        end
+        conn:Disconnect()
+    end
+end)
+]], c.jobId, FileName, c.placeId)
+
+            if i == 1 and setclipboard then setclipboard(smartJoinScript) end
+            if i == 2 then print(smartJoinScript) end
+        end
+    end
+else
+    print("❌ No visual data yet. Hop servers to scan textures!")
+end
+print("========================================")
+print("\n")local FILE = "%s"
 local P = game.Players.LocalPlayer
 TP:TeleportToPlaceInstance(%d, ID, P)
 local conn
