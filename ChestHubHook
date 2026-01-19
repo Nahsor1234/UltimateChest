@@ -1,4 +1,4 @@
--- // ULTIMATE CHEST HUB V3 (SYNCED COUNTER + ERROR MONITOR) //
+-- // ULTIMATE CHEST HUB V4 (FIRETOUCH ONLY + SYNCED COUNTER) //
 
 -- // [1] SERVICES //
 local Players = game:GetService("Players")
@@ -17,8 +17,8 @@ local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 -- // [2] CONFIGURATION //
 local DefaultConfig = {
     WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
-    TweenSpeed = 350,
-    CollectionWait = 0.35, -- This value now controls the Counter speed too
+    TweenSpeed = 350,       
+    CollectionWait = 0.25, -- Keeps the counter synced with FireTouch
     AFKMode = true,
     FastMode = true,
     StopOnRareItem = true,
@@ -32,7 +32,7 @@ local DefaultConfig = {
     MaxFarmDistance = 4000
 }
 
--- Load UserConfig (Priority)
+-- Load UserConfig
 local Config = DefaultConfig
 if getgenv().UserConfig then
     for key, val in pairs(getgenv().UserConfig) do
@@ -181,7 +181,7 @@ local function createLabel(text, order, color)
     return Label
 end
 
-local TitleLbl = createLabel("CHEST HUB V2", 0, Color3.fromRGB(255, 60, 60))
+local TitleLbl = createLabel("CHEST HUB V4 (FIRETOUCH)", 0, Color3.fromRGB(255, 60, 60))
 local ChestsLbl = createLabel("Chests: 0", 1, Color3.fromRGB(255, 170, 0))
 local FruitLbl = createLabel("Fruit: None", 2, Color3.fromRGB(255, 85, 255))
 local TimerLbl = createLabel("Timer: 00:00:00", 3, Color3.fromRGB(200, 200, 200))
@@ -292,7 +292,7 @@ local function ServerHop()
     pcall(FetchAndHop)
 end
 
--- // [9] ERROR MONITOR (WATCHDOG) //
+-- ERROR WATCHDOG
 task.spawn(function()
     while true do
         task.wait(2)
@@ -301,7 +301,6 @@ task.spawn(function()
             if prompt and prompt:FindFirstChild("promptOverlay") then
                 local errorPopup = prompt.promptOverlay:FindFirstChild("ErrorPrompt")
                 if errorPopup and errorPopup.Visible then
-                    -- ERROR DETECTED: TRY HOPPING
                     StatusLbl.Text = "ERROR DETECTED! HOPPING..."
                     ServerHop()
                 end
@@ -377,22 +376,19 @@ local function FarmLoop()
         StatusLbl.Text = "Travel: " .. dist .. "m"
         IsMoving = true
         
-        local tween
-        if math.abs(root.Position.Y - target.Position.Y) > 800 then
-            root.CFrame = target.CFrame; task.wait(0.5)
-        else
-            tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
-            tween:Play()
-            -- Live Distance Meter
-            while tween.PlaybackState == Enum.PlaybackState.Playing do
-                if not Farming then tween:Cancel() IsMoving = false return end
-                if root and target then
-                    local currentDist = math.floor((root.Position - target.Position).Magnitude)
-                    StatusLbl.Text = "Travel: " .. currentDist .. "m"
-                end
-                task.wait()
+        -- // STANDARD FLYING (NO HYBRID TELEPORT) //
+        local tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+        tween:Play()
+        while tween.PlaybackState == Enum.PlaybackState.Playing do
+            if not Farming then tween:Cancel() IsMoving = false return end
+            if root and target then
+                local currentDist = math.floor((root.Position - target.Position).Magnitude)
+                StatusLbl.Text = "Flying: " .. currentDist .. "m"
             end
+            task.wait()
         end
+        -- // ---------------------------------- //
+        
         IsMoving = false
         StatusLbl.Text = "Collecting..."
         
@@ -402,10 +398,17 @@ local function FarmLoop()
                 if not VisitedChests[v] then
                     VisitedChests[v] = true 
                     root.CFrame = v.CFrame 
+                    
+                    -- // INSTANT COLLECT (FIRETOUCH) //
+                    if v:FindFirstChild("TouchInterest") then
+                        firetouchinterest(root, v, 0)
+                        firetouchinterest(root, v, 1)
+                    end
+                    -- // -------------------------- //
+                    
                     task.wait(Config.CollectionWait)
                     
-                    -- // SYNCED COUNTER LOGIC //
-                    -- Uses Config.CollectionWait as the cooldown timer
+                    -- // SYNCED COUNTER //
                     if (os.clock() - LastCounterUpdate) >= Config.CollectionWait then
                          Stats.Chests = Stats.Chests + 1
                          ChestsLbl.Text = "Chests: " .. Stats.Chests 
@@ -419,36 +422,4 @@ local function FarmLoop()
         ZonesLbl.Text = "Zones Done: " .. Stats.ZonesDone
     else
         ChestRetryCounter = ChestRetryCounter + 1
-        StatusLbl.Text = "Search: " .. ChestRetryCounter .. "/5"
-        if ChestRetryCounter >= 5 then ServerHop() end
-    end
-end
-
--- // [10] EVENTS & LOOPS //
-ToggleBtn.MouseButton1Click:Connect(function()
-    Farming = not Farming
-    ToggleBtn.Text = Farming and "ON" or "OFF"
-    ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
-    if Farming then StartPosition = Player.Character.HumanoidRootPart.Position end
-end)
-HopBtn.MouseButton1Click:Connect(ServerHop)
-AFKBtn.MouseButton1Click:Connect(function()
-    IsAFK = not IsAFK
-    AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
-    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(60, 60, 60)
-    AFKBtn.TextColor3 = IsAFK and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
-    BlurFrame.Visible = IsAFK
-    BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
-end)
-Player.Idled:Connect(function() VirtualUser:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame) task.wait(1) VirtualUser:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame) end)
-
-task.spawn(function()
-    while true do
-        local secs = os.time() - StartTime
-        TimerLbl.Text = string.format("Timer: %02d:%02d:%02d", math.floor(secs/3600), math.floor((secs%3600)/60), secs%60)
-        if Player.Data and Player.Data.Beli then EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) end
-        task.wait(1)
-    end
-end)
-
-task.spawn(function() while true do if Farming then pcall(FarmLoop) end task.wait(0.5) end end)
+        StatusLbl.Text = "Search: "
