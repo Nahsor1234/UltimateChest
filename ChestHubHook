@@ -1,4 +1,4 @@
--- // ULTIMATE CHEST HUB V2 (FINAL COMPLETE) //
+-- // ULTIMATE CHEST HUB V2 (ORIGINAL + WEBHOOK PATCH) //
 
 -- 1. SERVICES
 local Players = game:GetService("Players")
@@ -14,7 +14,7 @@ local CoreGui = game:GetService("CoreGui")
 
 local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
--- // --- WEBHOOK CONFIGURATION --- //
+-- // [PATCH] WEBHOOK CONFIGURATION //
 local WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t"
 -- // ----------------------------- //
 
@@ -59,7 +59,7 @@ local PlaceID = game.PlaceId
 local AllIDs = {}
 local foundAnything = ""
 local actualHour = os.date("!*t").hour
-local Hopping = false 
+local Hopping = false -- Added debounce from Hook version to prevent spam
 
 -- 4. HOP FILE SETUP
 local function SetupHopFile()
@@ -80,7 +80,7 @@ SetupHopFile()
 pcall(function() StartMoney = Player.Data.Beli.Value end)
 pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
 
--- // --- UPDATED WEBHOOK FUNCTION --- //
+-- // [PATCH] WEBHOOK FUNCTION //
 local function SendWebhook(fruitName)
     task.spawn(function()
         local request = http_request or request or HttpPost or syn.request
@@ -95,7 +95,7 @@ local function SendWebhook(fruitName)
         local duration = os.time() - StartTime
         local timeString = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
 
-        -- Format Description (Single Line Style)
+        -- Format Description
         local desc = ""
         desc = desc .. "**Player:** " .. Player.Name .. "\n"
         desc = desc .. "**Time:** " .. timeString .. "\n"
@@ -122,7 +122,7 @@ local function SendWebhook(fruitName)
         end)
     end)
 end
--- // -------------------------------- //
+-- // ----------------------- //
 
 -- ANTI-IDLE
 Player.Idled:Connect(function()
@@ -143,7 +143,7 @@ task.spawn(function()
     end
 end)
 
--- // --- UI SETUP --- //
+-- UI SETUP
 pcall(function()
     if Player:FindFirstChild("PlayerGui") then
         for _, v in pairs(Player.PlayerGui:GetChildren()) do if v.Name == "ChestHub_Core" then v:Destroy() end end
@@ -155,7 +155,6 @@ ScreenGui.Name = "ChestHub_Core"
 ScreenGui.IgnoreGuiInset = true 
 ScreenGui.Parent = Player:WaitForChild("PlayerGui") 
 
--- AFK OVERLAY
 local BlurFrame = Instance.new("Frame")
 BlurFrame.Name = "AFKOverlay"
 BlurFrame.Parent = ScreenGui
@@ -164,7 +163,6 @@ BlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 BlurFrame.BackgroundTransparency = Config.AFKMode and 0 or 1 
 BlurFrame.Visible = Config.AFKMode 
 
--- MAIN FRAME
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "StatsFrame"
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -172,16 +170,6 @@ MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
 MainFrame.Size = UDim2.new(0, 160, 0, 0) 
 MainFrame.AutomaticSize = Enum.AutomaticSize.Y
 MainFrame.Parent = ScreenGui
-MainFrame.Active = true       
-MainFrame.Draggable = true    
-
-local UIStroke = Instance.new("UIStroke")
-UIStroke.Parent = MainFrame
-UIStroke.Color = Color3.fromRGB(255, 60, 60)
-UIStroke.Thickness = 1
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 6)
-UICorner.Parent = MainFrame
 
 local UIListLayout = Instance.new("UIListLayout")
 UIListLayout.Parent = MainFrame
@@ -223,7 +211,6 @@ Spacer.Size = UDim2.new(1, 0, 0, 4)
 Spacer.LayoutOrder = 7
 Spacer.Parent = MainFrame
 
--- ROW 1: TOGGLE & HOP
 local BtnRow1 = Instance.new("Frame")
 BtnRow1.BackgroundTransparency = 1
 BtnRow1.Size = UDim2.new(1, 0, 0, 20)
@@ -257,7 +244,6 @@ Spacer2.Size = UDim2.new(1, 0, 0, 4)
 Spacer2.LayoutOrder = 9
 Spacer2.Parent = MainFrame
 
--- ROW 2: AFK BUTTON
 local BtnRow2 = Instance.new("Frame")
 BtnRow2.BackgroundTransparency = 1
 BtnRow2.Size = UDim2.new(1, 0, 0, 20)
@@ -274,33 +260,39 @@ AFKBtn.Font = Enum.Font.GothamBlack
 AFKBtn.TextSize = 10
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 4)
 
--- // --- FAST MODE LOOP (FIXED) --- //
+-- AFK TOGGLE
+local function ToggleAFK()
+    IsAFK = not IsAFK
+    AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
+    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(60, 60, 60)
+    AFKBtn.TextColor3 = IsAFK and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
+    BlurFrame.Visible = IsAFK
+    BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
+end
+
+-- FAST MODE
 task.spawn(function()
     if Config.FastMode then
-        while task.wait(10) do -- Re-applies every 10 seconds
-            pcall(function()
-                Lighting.GlobalShadows = false
-                Lighting.FogEnd = 9e9
-                for _, v in pairs(Workspace:GetDescendants()) do
-                    if v:IsA("BasePart") then 
-                        v.Material = Enum.Material.SmoothPlastic 
-                        v.Reflectance = 0
-                        v.CastShadow = false 
-                    end
-                    if v:IsA("Texture") or v:IsA("Decal") then v.Transparency = 1 end
-                    if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
-                end
-            end)
-        end
+        task.wait(1)
+        pcall(function()
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 9e9
+            for _, v in pairs(Workspace:GetDescendants()) do
+                if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic v.CastShadow = false end
+                if v:IsA("Texture") or v:IsA("Decal") then v.Transparency = 1 end
+            end
+        end)
     end
 end)
--- // ------------------------------ //
 
--- SERVER HOP LOGIC
+-- SERVER HOP
 local function ServerHop()
     if Hopping then return end
     Hopping = true
+    
+    -- // [PATCH] TRIGGER WEBHOOK //
     SendWebhook("None") 
+    -- // ----------------------- //
     
     StatusLbl.Text = "Smart Hopping..."
     task.wait(Config.HopDelay)
@@ -336,7 +328,35 @@ local function ServerHop()
     pcall(FetchAndHop)
 end
 
--- STORE FRUIT
+local function CheckAdmin()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Player then
+            local success, rank = pcall(function() return p:GetRankInGroup(Config.AdminGroupID) end)
+            if success and rank > Config.MinGroupRank then
+                StatusLbl.Text = "ADMIN!"
+                StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+                Farming = false
+                task.wait(0.5)
+                ServerHop()
+            end
+        end
+    end
+end
+
+local function CheckRareItems()
+    if not Config.StopOnRareItem then return false end
+    for _, name in pairs(RareItems) do
+        if Player.Backpack:FindFirstChild(name) or Player.Character:FindFirstChild(name) then
+            Farming = false
+            StatusLbl.Text = "ITEM FOUND!"
+            StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+            ToggleBtn.Text = "PAUSED"
+            return true
+        end
+    end
+    return false
+end
+
 local function StoreFruit(fruitInstance)
     if not fruitInstance then return end
     local char = Player.Character
@@ -348,7 +368,9 @@ local function StoreFruit(fruitInstance)
         task.wait(0.5) 
     end
     
+    -- // [PATCH] TRIGGER WEBHOOK //
     SendWebhook(cleanName)
+    -- // ----------------------- //
     
     local args = { 
         [1] = "StoreFruit", 
@@ -364,9 +386,10 @@ local function StoreFruit(fruitInstance)
     StatusLbl.Text = "Status: Active"
 end
 
--- FARM LOOP
 local function FarmLoop()
     if not Farming or IsMoving or Hopping then return end
+    CheckAdmin()
+    if CheckRareItems() then return end
 
     local root = Player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
@@ -376,8 +399,6 @@ local function FarmLoop()
     if Config.FarmFruit then
         for _, v in pairs(Workspace:GetChildren()) do
             if v:IsA("Tool") and v.Name:find("Fruit") and v:FindFirstChild("Handle") then
-                StatusLbl.Text = "Sniping..."
-                FruitLbl.Text = "Fruit: " .. v.Name
                 root.CFrame = v.Handle.CFrame 
                 if v.Handle:FindFirstChild("TouchInterest") then
                     firetouchinterest(root, v.Handle, 0)
@@ -423,10 +444,6 @@ local function FarmLoop()
             tween:Play()
             while tween.PlaybackState == Enum.PlaybackState.Playing do
                 if not Farming then tween:Cancel() IsMoving = false return end
-                if root and target then
-                    local currentDist = math.floor((root.Position - target.Position).Magnitude)
-                    StatusLbl.Text = "Travel: " .. currentDist .. "m"
-                end
                 task.wait()
             end
         end
@@ -455,7 +472,7 @@ local function FarmLoop()
     end
 end
 
--- BUTTON EVENTS
+-- HANDLERS
 ToggleBtn.MouseButton1Click:Connect(function()
     Farming = not Farming
     ToggleBtn.Text = Farming and "ON" or "OFF"
@@ -463,21 +480,16 @@ ToggleBtn.MouseButton1Click:Connect(function()
     if Farming then StartPosition = Player.Character.HumanoidRootPart.Position end
 end)
 HopBtn.MouseButton1Click:Connect(ServerHop)
-AFKBtn.MouseButton1Click:Connect(function()
-    IsAFK = not IsAFK
-    AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
-    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(60, 60, 60)
-    AFKBtn.TextColor3 = IsAFK and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
-    BlurFrame.Visible = IsAFK
-    BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
-end)
+AFKBtn.MouseButton1Click:Connect(ToggleAFK)
+Players.PlayerAdded:Connect(CheckAdmin)
 
--- MAIN LOOPS
+-- LOOPS
 task.spawn(function()
     while true do
         local secs = os.time() - StartTime
         TimerLbl.Text = string.format("Timer: %02d:%02d:%02d", math.floor(secs/3600), math.floor((secs%3600)/60), secs%60)
         if Player.Data and Player.Data.Beli then EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) end
+        CheckAdmin()
         task.wait(1)
     end
 end)
