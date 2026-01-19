@@ -488,10 +488,5 @@ task.spawn(function()
     while true do
         local secs = os.time() - StartTime
         TimerLbl.Text = string.format("Timer: %02d:%02d:%02d", math.floor(secs/3600), math.floor((secs%3600)/60), secs%60)
-        if Player.Data and Player.Data.Beli then EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) end
-        CheckAdmin()
-        task.wait(1)
-    end
-end)
-
-task.spawn(function() while true do if Farming then pcall(FarmLoop) end task.wait(0.5) end end)
+        if Player.Data and Playe
+::contentReference[oaicite:2]{index=2}
