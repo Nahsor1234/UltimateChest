@@ -422,4 +422,36 @@ local function FarmLoop()
         ZonesLbl.Text = "Zones Done: " .. Stats.ZonesDone
     else
         ChestRetryCounter = ChestRetryCounter + 1
-        StatusLbl.Text = "Search: "
+        StatusLbl.Text = "Search: " .. ChestRetryCounter .. "/5"
+        if ChestRetryCounter >= 5 then ServerHop() end
+    end
+end
+
+-- // [10] EVENTS & LOOPS //
+ToggleBtn.MouseButton1Click:Connect(function()
+    Farming = not Farming
+    ToggleBtn.Text = Farming and "ON" or "OFF"
+    ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    if Farming then StartPosition = Player.Character.HumanoidRootPart.Position end
+end)
+HopBtn.MouseButton1Click:Connect(ServerHop)
+AFKBtn.MouseButton1Click:Connect(function()
+    IsAFK = not IsAFK
+    AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
+    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(60, 60, 60)
+    AFKBtn.TextColor3 = IsAFK and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
+    BlurFrame.Visible = IsAFK
+    BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
+end)
+Player.Idled:Connect(function() VirtualUser:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame) task.wait(1) VirtualUser:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame) end)
+
+task.spawn(function()
+    while true do
+        local secs = os.time() - StartTime
+        TimerLbl.Text = string.format("Timer: %02d:%02d:%02d", math.floor(secs/3600), math.floor((secs%3600)/60), secs%60)
+        if Player.Data and Player.Data.Beli then EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) end
+        task.wait(1)
+    end
+end)
+
+task.spawn(function() while true do if Farming then pcall(FarmLoop) end task.wait(0.5) end end)
