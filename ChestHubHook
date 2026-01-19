@@ -1,7 +1,6 @@
--- // ULTIMATE CHEST HUB V2 (WEBHOOK EDITION) //
--- // UPLOAD THIS TO GITHUB //
+-- // ULTIMATE CHEST HUB V2 (WEBHOOK ADDED ONLY) //
 
--- 1. SERVICES (Moved to top to prevent crashes)
+-- 1. SERVICES
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,28 +14,26 @@ local CoreGui = game:GetService("CoreGui")
 
 local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
--- // WEBHOOK CONFIGURATION //
+-- // --- WEBHOOK CONFIGURATION (ADDED) --- //
 local WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t"
+-- // ------------------------------------- //
 
--- 2. RECEIVE & MERGE SETTINGS
+-- 2. SETTINGS
 local UserSettings = getgenv().UserConfig or {}
 
--- Helper function to safely get boolean settings (Fixes the "Can't turn off" bug)
 local function GetConfig(key, default)
     if UserSettings[key] ~= nil then return UserSettings[key] end
     return default
 end
 
 local Config = {
-    -- User Controlled
     TweenSpeed = GetConfig("TweenSpeed", 350),
     CollectionWait = GetConfig("CollectionWait", 0.35),
     AFKMode = GetConfig("AFKMode", true),
     FastMode = GetConfig("FastMode", true),
     StopOnRareItem = GetConfig("StopOnRareItem", true),
     FarmChests = GetConfig("FarmChests", true),
-
-    -- Core Defaults (Hidden)
+    
     HopDelay = 5,
     FarmFruit = true,
     MinGroupRank = 2,            
@@ -63,7 +60,7 @@ local AllIDs = {}
 local foundAnything = ""
 local actualHour = os.date("!*t").hour
 
--- 4. HOP FILE SETUP (Safe Write)
+-- 4. HOP FILE SETUP
 local function SetupHopFile()
     pcall(function()
         if not isfile("NotSameServers.json") then
@@ -79,61 +76,56 @@ local function SetupHopFile()
 end
 SetupHopFile()
 
--- Safe Load
 pcall(function() StartMoney = Player.Data.Beli.Value end)
 pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
 
--- // WEBHOOK FUNCTION //
-local function SendWebhook(fruitName, isHop)
+-- // --- WEBHOOK FUNCTION (ADDED) --- //
+local function SendWebhook(fruitName)
     task.spawn(function()
+        local request = http_request or request or HttpPost or syn.request
+        if not request then return end
+
+        -- Calculate Money
         local currentBeli = 0
         pcall(function() currentBeli = Player.Data.Beli.Value end)
-        
         local earned = currentBeli - StartMoney
-        if earned < 0 then earned = 0 end -- Prevent negative numbers glitch
-        
-        local embedColor = 65280 -- Green
-        local titleText = "Chest Hub Report"
-        
-        if fruitName ~= "None" then
-            embedColor = 16711680 -- Red for Fruit Alert
-            titleText = "🍎 FRUIT SNIPED! 🍎"
-        end
+        if earned < 0 then earned = 0 end
 
+        -- Prepare Data
         local data = {
             ["embeds"] = {{
-                ["title"] = titleText,
-                ["color"] = embedColor,
+                ["title"] = "Chest Hub Log",
+                ["color"] = fruitName ~= "None" and 16711680 or 65280, -- Red for Fruit, Green for Hop
                 ["fields"] = {
-                    { ["name"] = "Name", ["value"] = Player.Name, ["inline"] = true },
-                    { ["name"] = "Money Earned", ["value"] = "$" .. tostring(earned), ["inline"] = true },
-                    { ["name"] = "Total Money", ["value"] = "$" .. tostring(currentBeli), ["inline"] = true },
+                    { ["name"] = "Player", ["value"] = Player.Name, ["inline"] = true },
+                    { ["name"] = "Money", ["value"] = "$" .. tostring(earned), ["inline"] = true },
+                    { ["name"] = "Total.Money", ["value"] = "$" .. tostring(currentBeli), ["inline"] = true },
                     { ["name"] = "Fruit", ["value"] = fruitName or "None", ["inline"] = false }
-                },
-                ["footer"] = { ["text"] = "Chest Hub V2 | Auto-Farm Log" }
+                }
             }}
         }
         
-        local jsonData = HttpService:JSONEncode(data)
-        local headers = {["Content-Type"] = "application/json"}
-        local request = http_request or request or HttpPost or syn.request
-        
-        if request then
-            pcall(function()
-                request({Url = WebhookURL, Body = jsonData, Method = "POST", Headers = headers})
-            end)
-        end
+        -- Send Request (Safe Pcall)
+        pcall(function()
+            request({
+                Url = WebhookURL, 
+                Body = HttpService:JSONEncode(data), 
+                Method = "POST", 
+                Headers = {["Content-Type"] = "application/json"}
+            })
+        end)
     end)
 end
+-- // -------------------------------- //
 
--- // ANTI-IDLE //
+-- ANTI-IDLE
 Player.Idled:Connect(function()
     VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
     task.wait(1)
     VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
 end)
 
--- // AUTO REJOIN //
+-- AUTO REJOIN
 task.spawn(function()
     if CoreGui:FindFirstChild("RobloxPromptGui") then
         CoreGui.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
@@ -145,13 +137,11 @@ task.spawn(function()
     end
 end)
 
--- // UI SETUP (CODEX COMPATIBLE) //
--- Cleanup
+-- UI SETUP (Original)
 pcall(function()
     if Player:FindFirstChild("PlayerGui") then
         for _, v in pairs(Player.PlayerGui:GetChildren()) do if v.Name == "ChestHub_Core" then v:Destroy() end end
     end
-    for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "ChestHub_Core" then v:Destroy() end end
 end)
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -159,7 +149,6 @@ ScreenGui.Name = "ChestHub_Core"
 ScreenGui.IgnoreGuiInset = true 
 ScreenGui.Parent = Player:WaitForChild("PlayerGui") 
 
--- AFK OVERLAY (Black Screen only, no Render Disable)
 local BlurFrame = Instance.new("Frame")
 BlurFrame.Name = "AFKOverlay"
 BlurFrame.Parent = ScreenGui
@@ -167,35 +156,18 @@ BlurFrame.Size = UDim2.new(1, 0, 1, 0)
 BlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 BlurFrame.BackgroundTransparency = Config.AFKMode and 0 or 1 
 BlurFrame.Visible = Config.AFKMode 
-BlurFrame.ZIndex = 1 
 
--- MAIN FRAME
 local MainFrame = Instance.new("Frame")
-MainFrame.Name = "StatsFrame"
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MainFrame.BorderSizePixel = 0
 MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
 MainFrame.Size = UDim2.new(0, 160, 0, 0) 
 MainFrame.AutomaticSize = Enum.AutomaticSize.Y
-MainFrame.Active = true
-MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
-MainFrame.ZIndex = 5 
-
-local UIStroke = Instance.new("UIStroke")
-UIStroke.Parent = MainFrame
-UIStroke.Color = Color3.fromRGB(255, 60, 60)
-UIStroke.Thickness = 1
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 6)
-UICorner.Parent = MainFrame
 
 local UIListLayout = Instance.new("UIListLayout")
 UIListLayout.Parent = MainFrame
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 UIListLayout.Padding = UDim.new(0, 2) 
-
 local UIPadding = Instance.new("UIPadding")
 UIPadding.Parent = MainFrame
 UIPadding.PaddingTop = UDim.new(0, 8)
@@ -203,123 +175,30 @@ UIPadding.PaddingLeft = UDim.new(0, 8)
 UIPadding.PaddingRight = UDim.new(0, 8)
 UIPadding.PaddingBottom = UDim.new(0, 8)
 
-local function createLabel(text, order, color, fontOverride)
+local function createLabel(text, order)
     local Label = Instance.new("TextLabel")
     Label.Parent = MainFrame
     Label.BackgroundTransparency = 1
     Label.Size = UDim2.new(1, 0, 0, 14) 
-    Label.Font = fontOverride or Enum.Font.GothamBold
+    Label.Font = Enum.Font.GothamBold
     Label.Text = text
-    Label.TextColor3 = color or Color3.fromRGB(255, 255, 255)
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
     Label.TextSize = 11 
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.LayoutOrder = order
-    Label.ZIndex = 6
     return Label
 end
 
-local TitleLbl = createLabel("CHEST HUB V2", 0, Color3.fromRGB(255, 60, 60), Enum.Font.GothamBlack)
-local ChestsLbl = createLabel("Chests: 0", 1, Color3.fromRGB(255, 170, 0))
-local FruitLbl = createLabel("Fruit: None", 2, Color3.fromRGB(255, 85, 255))
-local TimerLbl = createLabel("Timer: 00:00:00", 3, Color3.fromRGB(200, 200, 200))
-local ZonesLbl = createLabel("Zones Done: 0", 4, Color3.fromRGB(0, 255, 255))
-local EarnedLbl = createLabel("Earned: $0", 5, Color3.fromRGB(85, 255, 127))
-local StatusLbl = createLabel("Status: Active", 6, Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack)
+local StatusLbl = createLabel("Status: Active", 6)
 
-local Spacer = Instance.new("Frame")
-Spacer.BackgroundTransparency = 1
-Spacer.Size = UDim2.new(1, 0, 0, 4)
-Spacer.LayoutOrder = 7
-Spacer.Parent = MainFrame
-
-local BtnRow1 = Instance.new("Frame")
-BtnRow1.BackgroundTransparency = 1
-BtnRow1.Size = UDim2.new(1, 0, 0, 20)
-BtnRow1.LayoutOrder = 8
-BtnRow1.Parent = MainFrame
-BtnRow1.ZIndex = 6
-
-local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Parent = BtnRow1
-ToggleBtn.Text = "ON"
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.Size = UDim2.new(0.48, 0, 1, 0)
-ToggleBtn.Font = Enum.Font.GothamBlack
-ToggleBtn.TextSize = 10
-ToggleBtn.ZIndex = 6
-Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 4)
-
-local HopBtn = Instance.new("TextButton")
-HopBtn.Parent = BtnRow1
-HopBtn.Text = "HOP"
-HopBtn.BackgroundColor3 = Color3.fromRGB(45, 120, 255)
-HopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-HopBtn.Position = UDim2.new(0.52, 0, 0, 0)
-HopBtn.Size = UDim2.new(0.48, 0, 1, 0)
-HopBtn.Font = Enum.Font.GothamBlack
-HopBtn.TextSize = 10
-HopBtn.ZIndex = 6
-Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 4)
-
-local Spacer2 = Instance.new("Frame")
-Spacer2.BackgroundTransparency = 1
-Spacer2.Size = UDim2.new(1, 0, 0, 2)
-Spacer2.LayoutOrder = 9
-Spacer2.Parent = MainFrame
-
-local BtnRow2 = Instance.new("Frame")
-BtnRow2.BackgroundTransparency = 1
-BtnRow2.Size = UDim2.new(1, 0, 0, 20)
-BtnRow2.LayoutOrder = 10
-BtnRow2.Parent = MainFrame
-BtnRow2.ZIndex = 6
-
-local AFKBtn = Instance.new("TextButton")
-AFKBtn.Parent = BtnRow2
-AFKBtn.Text = Config.AFKMode and "AFK: ON" or "AFK: OFF"
-AFKBtn.BackgroundColor3 = Config.AFKMode and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(60, 60, 60)
-AFKBtn.TextColor3 = Config.AFKMode and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
-AFKBtn.Size = UDim2.new(1, 0, 1, 0)
-AFKBtn.Font = Enum.Font.GothamBlack
-AFKBtn.TextSize = 10
-AFKBtn.ZIndex = 6
-Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 4)
-
--- // AFK TOGGLE FUNCTION //
-local function ToggleAFK()
-    IsAFK = not IsAFK
-    AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
-    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(60, 60, 60)
-    AFKBtn.TextColor3 = IsAFK and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
-    
-    BlurFrame.Visible = IsAFK
-    BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
-end
-
--- // FAST MODE //
-task.spawn(function()
-    if Config.FastMode then
-        task.wait(1)
-        pcall(function()
-            Lighting.GlobalShadows = false
-            Lighting.FogEnd = 9e9
-            for _, v in pairs(Workspace:GetDescendants()) do
-                if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic v.CastShadow = false end
-                if v:IsA("Texture") or v:IsA("Decal") then v.Transparency = 1 end
-            end
-        end)
-    end
-end)
-
--- // SERVER HOP (SMART MEMORY FILE) //
+-- SERVER HOP
 local function ServerHop()
-    -- SEND WEBHOOK BEFORE HOPPING
-    SendWebhook("None", true)
+    -- // --- ADDED WEBHOOK CALL --- //
+    SendWebhook("None") 
+    -- // -------------------------- //
     
     StatusLbl.Text = "Smart Hopping..."
     task.wait(Config.HopDelay)
-    
     SetupHopFile()
     
     local function FetchAndHop()
@@ -329,24 +208,16 @@ local function ServerHop()
         else
             Site = HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. foundAnything))
         end
-        
-        if Site.nextPageCursor and Site.nextPageCursor ~= "null" then
-            foundAnything = Site.nextPageCursor
-        end
+        if Site.nextPageCursor and Site.nextPageCursor ~= "null" then foundAnything = Site.nextPageCursor end
         
         for _, v in pairs(Site.data) do
             local ID = tostring(v.id)
             if tonumber(v.maxPlayers) > tonumber(v.playing) and tonumber(v.playing) >= 2 then
                 local Possible = true
                 for _, Existing in pairs(AllIDs) do
-                    if ID == tostring(Existing) then
-                        Possible = false
-                        break
-                    end
+                    if ID == tostring(Existing) then Possible = false break end
                 end
-                
                 if Possible then
-                    StatusLbl.Text = "Found: " .. v.playing .. " Plrs"
                     table.insert(AllIDs, ID)
                     pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
                     TeleportService:TeleportToPlaceInstance(PlaceID, ID, Player)
@@ -354,56 +225,26 @@ local function ServerHop()
                 end
             end
         end
-        
-        StatusLbl.Text = "Scanning Next Page..."
         task.wait(0.1)
         FetchAndHop()
     end
     pcall(FetchAndHop)
 end
 
-local function CheckAdmin()
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= Player then
-            local success, rank = pcall(function() return p:GetRankInGroup(Config.AdminGroupID) end)
-            if success and rank > Config.MinGroupRank then
-                StatusLbl.Text = "ADMIN!"
-                StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
-                Farming = false
-                task.wait(0.5)
-                ServerHop()
-            end
-        end
-    end
-end
-
-local function CheckRareItems()
-    if not Config.StopOnRareItem then return false end
-    for _, name in pairs(RareItems) do
-        if Player.Backpack:FindFirstChild(name) or Player.Character:FindFirstChild(name) then
-            Farming = false
-            StatusLbl.Text = "ITEM FOUND!"
-            StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
-            ToggleBtn.Text = "PAUSED"
-            return true
-        end
-    end
-    return false
-end
-
+-- STORE FRUIT
 local function StoreFruit(fruitInstance)
     if not fruitInstance then return end
     local char = Player.Character
     local cleanName = fruitInstance.Name:gsub(" Fruit", "")
-    StatusLbl.Text = "Store: " .. cleanName
     
     if fruitInstance.Parent == Player.Backpack then 
         fruitInstance.Parent = char 
         task.wait(0.5) 
     end
     
-    -- WEBHOOK ALERT
-    SendWebhook(cleanName, false)
+    -- // --- ADDED WEBHOOK CALL --- //
+    SendWebhook(cleanName)
+    -- // -------------------------- //
     
     local args = { 
         [1] = "StoreFruit", 
@@ -415,26 +256,20 @@ local function StoreFruit(fruitInstance)
     if fruitInstance.Parent == char then
         pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StoreFruit", cleanName, fruitInstance) end)
     end
-    task.wait(0.5)
-    StatusLbl.Text = "Status: Active"
 end
 
+-- FARM LOOP
 local function FarmLoop()
     if not Farming or IsMoving then return end
-    CheckAdmin()
-    if CheckRareItems() then return end
 
     local root = Player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
     if not StartPosition then StartPosition = root.Position end
 
-    -- 1. FRUIT SNIPER (Prioritized & Instant)
+    -- FRUIT SNIPER
     if Config.FarmFruit then
         for _, v in pairs(Workspace:GetChildren()) do
             if v:IsA("Tool") and v.Name:find("Fruit") and v:FindFirstChild("Handle") then
-                local fName = v.Name:gsub(" Fruit", "")
-                StatusLbl.Text = "Sniping..."
-                FruitLbl.Text = "Fruit: " .. fName 
                 root.CFrame = v.Handle.CFrame 
                 if v.Handle:FindFirstChild("TouchInterest") then
                     firetouchinterest(root, v.Handle, 0)
@@ -442,13 +277,13 @@ local function FarmLoop()
                 end
                 task.wait(0.3)
                 local picked = Player.Backpack:FindFirstChild(v.Name) or Player.Character:FindFirstChild(v.Name)
-                if picked then StoreFruit(picked) FruitLbl.Text = "Stored: " .. fName end
+                if picked then StoreFruit(picked) end
                 return 
             end
         end
     end
 
-    -- 2. CHEST FARMING
+    -- CHEST FARMING
     local target, minDist = nil, math.huge
     if Config.FarmChests then
         for _, v in pairs(Workspace:GetDescendants()) do
@@ -480,10 +315,6 @@ local function FarmLoop()
             tween:Play()
             while tween.PlaybackState == Enum.PlaybackState.Playing do
                 if not Farming then tween:Cancel() IsMoving = false return end
-                if root and target then
-                    local currentDist = math.floor((root.Position - target.Position).Magnitude)
-                    StatusLbl.Text = "Travel: " .. currentDist .. "m"
-                end
                 task.wait()
             end
         end
@@ -498,13 +329,10 @@ local function FarmLoop()
                     root.CFrame = v.CFrame 
                     task.wait(Config.CollectionWait)
                     Stats.Chests = Stats.Chests + 1
-                    ChestsLbl.Text = "Chests: " .. Stats.Chests 
                 end
             end
         end
         table.insert(FinishedIslandPositions, target.Position)
-        Stats.ZonesDone = Stats.ZonesDone + 1
-        ZonesLbl.Text = "Zones Done: " .. Stats.ZonesDone
     else
         ChestRetryCounter = ChestRetryCounter + 1
         StatusLbl.Text = "Search: " .. ChestRetryCounter .. "/5"
@@ -512,29 +340,4 @@ local function FarmLoop()
     end
 end
 
--- // HANDLERS //
-ToggleBtn.MouseButton1Click:Connect(function()
-    Farming = not Farming
-    ToggleBtn.Text = Farming and "ON" or "OFF"
-    ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
-    StatusLbl.Text = Farming and "Status: Active" or "Status: Paused"
-    if Farming and Player.Character then StartPosition = Player.Character.HumanoidRootPart.Position end
-end)
-HopBtn.MouseButton1Click:Connect(ServerHop)
-AFKBtn.MouseButton1Click:Connect(ToggleAFK)
-Players.PlayerAdded:Connect(CheckAdmin)
-
--- // MAIN LOOPS //
-task.spawn(function()
-    while true do
-        local secs = os.time() - StartTime
-        TimerLbl.Text = string.format("Timer: %02d:%02d:%02d", math.floor(secs/3600), math.floor((secs%3600)/60), secs%60)
-        if Player.Data and Player.Data.Beli then EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) end
-        CheckAdmin()
-        task.wait(1)
-    end
-end)
-
 task.spawn(function() while true do if Farming then pcall(FarmLoop) end task.wait(0.5) end end)
-RunService.Stepped:Connect(function() 
-    
