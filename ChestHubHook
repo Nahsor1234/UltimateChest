@@ -1,4 +1,4 @@
--- // ULTIMATE CHEST HUB V3 (CONFIG FIX + LIVE DISTANCE + SMART COUNTER) //
+-- // ULTIMATE CHEST HUB V3 (PERFECT COUNTER + LIVE DISTANCE) //
 
 -- // [1] SERVICES //
 local Players = game:GetService("Players")
@@ -14,9 +14,8 @@ local CoreGui = game:GetService("CoreGui")
 
 local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
--- // [2] LOAD CONFIGURATION (FIXED PRIORITY) //
--- Defaults
-local Config = {
+-- // [2] CONFIGURATION //
+local DefaultConfig = {
     WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
     TweenSpeed = 350,
     CollectionWait = 0.35,
@@ -26,8 +25,6 @@ local Config = {
     FarmChests = true,
     FarmFruit = true,
     HopDelay = 5,
-    
-    -- Internal
     MinGroupRank = 2,
     AdminGroupID = 4372130,
     CircleRadius = 600,
@@ -35,10 +32,11 @@ local Config = {
     MaxFarmDistance = 4000
 }
 
--- Overwrite with UserConfig if it exists (Fixes your Loader issue)
+-- Load UserConfig if it exists
+local Config = DefaultConfig
 if getgenv().UserConfig then
-    for key, value in pairs(getgenv().UserConfig) do
-        Config[key] = value
+    for key, val in pairs(getgenv().UserConfig) do
+        Config[key] = val
     end
 end
 
@@ -59,8 +57,9 @@ local AllIDs = {}
 local foundAnything = ""
 local actualHour = os.date("!*t").hour
 local Hopping = false 
+local LastCounterUpdate = 0 -- Fix for double counting
 
--- // [4] HOP FILE SETUP //
+-- // [4] HOP FILE //
 local function SetupHopFile()
     pcall(function()
         if not isfile("NotSameServers.json") then
@@ -79,7 +78,7 @@ SetupHopFile()
 pcall(function() StartMoney = Player.Data.Beli.Value end)
 pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
 
--- // [5] WEBHOOK FUNCTION //
+-- // [5] WEBHOOK //
 local function SendWebhook(fruitName)
     task.spawn(function()
         local request = http_request or request or HttpPost or syn.request
@@ -120,14 +119,7 @@ local function SendWebhook(fruitName)
     end)
 end
 
--- // [6] ANTI-IDLE //
-Player.Idled:Connect(function()
-    VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-    task.wait(1)
-    VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-end)
-
--- // [7] UI SETUP //
+-- // [6] UI SETUP //
 pcall(function()
     if Player:FindFirstChild("PlayerGui") then
         for _, v in pairs(Player.PlayerGui:GetChildren()) do if v.Name == "ChestHub_Core" then v:Destroy() end end
@@ -139,7 +131,6 @@ ScreenGui.Name = "ChestHub_Core"
 ScreenGui.IgnoreGuiInset = true 
 ScreenGui.Parent = Player:WaitForChild("PlayerGui") 
 
--- AFK OVERLAY
 local BlurFrame = Instance.new("Frame")
 BlurFrame.Name = "AFKOverlay"
 BlurFrame.Parent = ScreenGui
@@ -148,7 +139,6 @@ BlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 BlurFrame.BackgroundTransparency = Config.AFKMode and 0 or 1 
 BlurFrame.Visible = Config.AFKMode 
 
--- MAIN FRAME
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "StatsFrame"
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -166,12 +156,10 @@ UIStroke.Thickness = 1
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 6)
 UICorner.Parent = MainFrame
-
 local UIListLayout = Instance.new("UIListLayout")
 UIListLayout.Parent = MainFrame
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 UIListLayout.Padding = UDim.new(0, 2) 
-
 local UIPadding = Instance.new("UIPadding")
 UIPadding.Parent = MainFrame
 UIPadding.PaddingTop = UDim.new(0, 8)
@@ -250,37 +238,25 @@ AFKBtn.Font = Enum.Font.GothamBlack
 AFKBtn.TextSize = 10
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 4)
 
--- // [8] FAST MODE //
+-- // [7] FAST MODE //
 local function ApplyFastMode()
     if not Config.FastMode then return end
     pcall(function()
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 9e9
         for _, v in pairs(Workspace:GetDescendants()) do
-            if v:IsA("BasePart") then 
-                v.Material = Enum.Material.SmoothPlastic 
-                v.Reflectance = 0
-                v.CastShadow = false 
-            end
+            if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic v.CastShadow = false end
             if v:IsA("Texture") or v:IsA("Decal") then v.Transparency = 1 end
-            if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
         end
     end)
 end
+task.spawn(function() while task.wait(5) do ApplyFastMode() end end)
 
-task.spawn(ApplyFastMode)
-task.spawn(function()
-    while task.wait(5) do
-        ApplyFastMode()
-    end
-end)
-
--- // [9] FARMING LOGIC //
+-- // [8] LOGIC //
 local function ServerHop()
     if Hopping then return end
     Hopping = true
     SendWebhook("None") 
-    
     StatusLbl.Text = "Smart Hopping..."
     task.wait(Config.HopDelay)
     SetupHopFile()
@@ -321,20 +297,11 @@ local function StoreFruit(fruitInstance)
     local cleanName = fruitInstance.Name:gsub(" Fruit", "")
     StatusLbl.Text = "Store: " .. cleanName
     
-    if fruitInstance.Parent == Player.Backpack then 
-        fruitInstance.Parent = char 
-        task.wait(0.5) 
-    end
-    
+    if fruitInstance.Parent == Player.Backpack then fruitInstance.Parent = char task.wait(0.5) end
     SendWebhook(cleanName)
     
-    local args = { 
-        [1] = "StoreFruit", 
-        [2] = fruitInstance:GetAttribute("OriginalName") or fruitInstance.Name, 
-        [3] = fruitInstance 
-    }
+    local args = { [1] = "StoreFruit", [2] = fruitInstance:GetAttribute("OriginalName") or fruitInstance.Name, [3] = fruitInstance }
     pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StoreFruit", args[2], args[3]) end)
-    
     if fruitInstance.Parent == char then
         pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StoreFruit", cleanName, fruitInstance) end)
     end
@@ -344,7 +311,6 @@ end
 
 local function FarmLoop()
     if not Farming or IsMoving or Hopping then return end
-
     local root = Player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
     if not StartPosition then StartPosition = root.Position end
@@ -398,7 +364,7 @@ local function FarmLoop()
         else
             tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
             tween:Play()
-            -- Loop runs while moving to update distance meter
+            -- LIVE DISTANCE UPDATE LOOP
             while tween.PlaybackState == Enum.PlaybackState.Playing do
                 if not Farming then tween:Cancel() IsMoving = false return end
                 if root and target then
@@ -411,7 +377,6 @@ local function FarmLoop()
         IsMoving = false
         StatusLbl.Text = "Collecting..."
         
-        -- // CHEST CLAIM LOOP //
         for _, v in pairs(Workspace:GetDescendants()) do
             if not Farming then return end 
             if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") and (v.Position - target.Position).Magnitude < Config.CircleRadius then
@@ -420,9 +385,12 @@ local function FarmLoop()
                     root.CFrame = v.CFrame 
                     task.wait(Config.CollectionWait)
                     
-                    -- COUNTER LOGIC (Only counts once per claim)
-                    Stats.Chests = Stats.Chests + 1
-                    ChestsLbl.Text = "Chests: " .. Stats.Chests 
+                    -- COUNTER DEBOUNCE (0.5s Timeout)
+                    if (os.clock() - LastCounterUpdate) > 0.5 then
+                         Stats.Chests = Stats.Chests + 1
+                         ChestsLbl.Text = "Chests: " .. Stats.Chests 
+                         LastCounterUpdate = os.clock()
+                    end
                 end
             end
         end
@@ -436,7 +404,7 @@ local function FarmLoop()
     end
 end
 
--- // [10] EVENTS & LOOPS //
+-- EVENTS
 ToggleBtn.MouseButton1Click:Connect(function()
     Farming = not Farming
     ToggleBtn.Text = Farming and "ON" or "OFF"
@@ -452,6 +420,7 @@ AFKBtn.MouseButton1Click:Connect(function()
     BlurFrame.Visible = IsAFK
     BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
 end)
+Player.Idled:Connect(function() VirtualUser:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame) task.wait(1) VirtualUser:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame) end)
 
 task.spawn(function()
     while true do
