@@ -1,18 +1,18 @@
--- // ULTIMATE CHEST HUB V2 (FIXED & COMPLETE) //
+-- // ULTIMATE CHEST HUB V3 (FAST MODE FIX + COUNTER FIX) //
 
 -- // [1] USER CONFIGURATION //
 getgenv().UserConfig = {
     -- Discord Webhook
     WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
     
-    -- Farming Settings
+    -- Settings
     TweenSpeed = 350,       
     CollectionWait = 0.35,  
     HopDelay = 5,
     
     -- Toggles
-    AFKMode = false,        -- I set this to FALSE so you don't get the black screen
-    FastMode = true,        
+    AFKMode = false,        -- Set to TRUE if you want black screen
+    FastMode = true,        -- Now applies INSTANTLY
     FarmChests = true,      
     FarmFruit = true,       
     StopOnRareItem = true   
@@ -69,6 +69,7 @@ local AllIDs = {}
 local foundAnything = ""
 local actualHour = os.date("!*t").hour
 local Hopping = false 
+local LastChestTime = 0 -- Fix for double counting
 
 -- // [5] HOP FILE SETUP //
 local function SetupHopFile()
@@ -229,7 +230,6 @@ Spacer.Size = UDim2.new(1, 0, 0, 4)
 Spacer.LayoutOrder = 7
 Spacer.Parent = MainFrame
 
--- BUTTONS
 local BtnRow1 = Instance.new("Frame")
 BtnRow1.BackgroundTransparency = 1
 BtnRow1.Size = UDim2.new(1, 0, 0, 20)
@@ -273,24 +273,31 @@ AFKBtn.Font = Enum.Font.GothamBlack
 AFKBtn.TextSize = 10
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 4)
 
--- // [10] FAST MODE LOOP //
-task.spawn(function()
-    if Config.FastMode then
-        while task.wait(10) do
-            pcall(function()
-                Lighting.GlobalShadows = false
-                Lighting.FogEnd = 9e9
-                for _, v in pairs(Workspace:GetDescendants()) do
-                    if v:IsA("BasePart") then 
-                        v.Material = Enum.Material.SmoothPlastic 
-                        v.Reflectance = 0
-                        v.CastShadow = false 
-                    end
-                    if v:IsA("Texture") or v:IsA("Decal") then v.Transparency = 1 end
-                    if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
-                end
-            end)
+-- // [10] FAST MODE FIX //
+local function ApplyFastMode()
+    if not Config.FastMode then return end
+    pcall(function()
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") then 
+                v.Material = Enum.Material.SmoothPlastic 
+                v.Reflectance = 0
+                v.CastShadow = false 
+            end
+            if v:IsA("Texture") or v:IsA("Decal") then v.Transparency = 1 end
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
         end
+    end)
+end
+
+-- Run Fast Mode Immediately
+task.spawn(ApplyFastMode)
+
+-- Keep Fast Mode Active Loop
+task.spawn(function()
+    while task.wait(5) do -- Checks every 5 seconds now (Faster than 10)
+        ApplyFastMode()
     end
 end)
 
@@ -419,10 +426,6 @@ local function FarmLoop()
             tween:Play()
             while tween.PlaybackState == Enum.PlaybackState.Playing do
                 if not Farming then tween:Cancel() IsMoving = false return end
-                if root and target then
-                    local currentDist = math.floor((root.Position - target.Position).Magnitude)
-                    StatusLbl.Text = "Travel: " .. currentDist .. "m"
-                end
                 task.wait()
             end
         end
@@ -436,8 +439,14 @@ local function FarmLoop()
                     VisitedChests[v] = true 
                     root.CFrame = v.CFrame 
                     task.wait(Config.CollectionWait)
-                    Stats.Chests = Stats.Chests + 1
-                    ChestsLbl.Text = "Chests: " .. Stats.Chests 
+                    
+                    -- // [FIX] CHEST COUNTER DEBOUNCE //
+                    if (os.clock() - LastChestTime) > 0.5 then
+                        Stats.Chests = Stats.Chests + 1
+                        ChestsLbl.Text = "Chests: " .. Stats.Chests 
+                        LastChestTime = os.clock()
+                    end
+                    -- // --------------------------- //
                 end
             end
         end
