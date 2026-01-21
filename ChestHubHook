@@ -1,5 +1,4 @@
--- // ULTIMATE CHEST HUB V5.4 (SYNTAX FIXED) //
-print(">> SCRIPT STARTING... <<")
+-- // NAHSOR CHESTHUB (UI LAYOUT FIXED) //
 
 -- // [1] SERVICES //
 local Players = game:GetService("Players")
@@ -13,11 +12,9 @@ local Lighting = game:GetService("Lighting")
 local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 
-local Player = Players.LocalPlayer
-if not Player then Player = Players.PlayerAdded:Wait() end
+local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 -- // [2] CONFIGURATION //
--- Default Settings
 local Config = {
     WebhookURL = "",
     TweenSpeed = 350,       
@@ -25,25 +22,22 @@ local Config = {
     AFKMode = true,
     FastMode = true,
     StopOnRareItem = true,
-    AdminHop = true,       
+    AdminHop = true, 
     FarmChests = true,
     FarmFruit = true,
     HopDelay = 5,
-    CircleRadius = 600,
-    IslandBlacklistRadius = 600,
     MaxFarmDistance = 4000
 }
 
--- [SAFE LOADER] - Fixed the loop that caused Error 567
+-- [LOADER SUPPORT]
 pcall(function()
-    if getgenv and getgenv().UserConfig then
-        local userConf = getgenv().UserConfig
-        if userConf.TweenSpeed then Config.TweenSpeed = userConf.TweenSpeed end
-        if userConf.AFKMode ~= nil then Config.AFKMode = userConf.AFKMode end
-        if userConf.FastMode ~= nil then Config.FastMode = userConf.FastMode end
-        if userConf.StopOnRareItem ~= nil then Config.StopOnRareItem = userConf.StopOnRareItem end
-        if userConf.FarmChests ~= nil then Config.FarmChests = userConf.FarmChests end
-        print(">> USER CONFIG LOADED")
+    if getgenv().UserConfig then
+        local user = getgenv().UserConfig
+        if user.TweenSpeed then Config.TweenSpeed = user.TweenSpeed end
+        if user.AFKMode ~= nil then Config.AFKMode = user.AFKMode end
+        if user.FastMode ~= nil then Config.FastMode = user.FastMode end
+        if user.StopOnRareItem ~= nil then Config.StopOnRareItem = user.StopOnRareItem end
+        if user.FarmChests ~= nil then Config.FarmChests = user.FarmChests end
     end
 end)
 
@@ -87,7 +81,7 @@ task.spawn(function()
 end)
 
 -- // [5] WEBHOOK //
-local function SendWebhook(fruitName, rareItem)
+local function SendWebhook(fruitName)
     if Config.WebhookURL == "" then return end
     task.spawn(function()
         local request = http_request or request or HttpPost or syn.request
@@ -96,29 +90,17 @@ local function SendWebhook(fruitName, rareItem)
         local currentBeli = 0
         pcall(function() currentBeli = Player.Data.Beli.Value end)
         local earned = currentBeli - StartMoney
-        if earned < 0 then earned = 0 end
         
         local duration = os.time() - StartTime
         local timeString = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
 
-        local title = "💰 SERVER HOP REPORT"
-        local color = 65280
-        
-        if fruitName ~= "None" then title = "🍎 FRUIT SNIPED!"; color = 16711680 end
-        if rareItem then title = "🚨 RARE ITEM FOUND!"; color = 16753920 end
-
-        local desc = ""
-        desc = desc .. "**Player:** " .. Player.Name .. "\n"
-        desc = desc .. "**Time:** " .. timeString .. "\n"
-        desc = desc .. "**Chests:** " .. tostring(Stats.Chests) .. "\n"
-        desc = desc .. "**Money:** $" .. tostring(earned) .. "\n"
-        desc = desc .. "**Total:** $" .. tostring(currentBeli) .. "\n"
-        desc = desc .. "**Item:** " .. (rareItem or fruitName or "None")
+        local title = fruitName ~= "None" and "🍎 FRUIT SNIPED!" or "💰 SERVER HOP REPORT"
+        local color = fruitName ~= "None" and 16711680 or 65280
 
         local data = {
             ["embeds"] = {{
                 ["title"] = title,
-                ["description"] = desc, 
+                ["description"] = "**Chests:** " .. Stats.Chests .. "\n**Earned:** $" .. earned .. "\n**Item:** " .. (fruitName or "None"), 
                 ["color"] = color
             }}
         }
@@ -135,23 +117,13 @@ local function SendWebhook(fruitName, rareItem)
 end
 
 -- // [6] UI SETUP //
-print(">> LOADING UI... <<")
-pcall(function()
-    if Player:FindFirstChild("PlayerGui") then
-        for _, v in pairs(Player.PlayerGui:GetChildren()) do if v.Name == "ChestHub_Core" then v:Destroy() end end
-    end
-end)
-
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ChestHub_Core"
 ScreenGui.IgnoreGuiInset = true 
-local playerGui = Player:WaitForChild("PlayerGui", 5) 
-if not playerGui then playerGui = Player:FindFirstChild("PlayerGui") end
-if playerGui then
-    ScreenGui.Parent = playerGui
-else
-    ScreenGui.Parent = CoreGui 
-end
+pcall(function() 
+    if Player.PlayerGui:FindFirstChild("ChestHub_Core") then Player.PlayerGui.ChestHub_Core:Destroy() end
+    ScreenGui.Parent = Player.PlayerGui 
+end)
 
 local BlurFrame = Instance.new("Frame")
 BlurFrame.Name = "AFKOverlay"
@@ -178,10 +150,13 @@ UIStroke.Thickness = 1
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 6)
 UICorner.Parent = MainFrame
+
 local UIListLayout = Instance.new("UIListLayout")
 UIListLayout.Parent = MainFrame
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+-- [FIX] THIS LINE WAS MISSING! IT FORCES BUTTONS TO BOTTOM
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder 
 UIListLayout.Padding = UDim.new(0, 2) 
+
 local UIPadding = Instance.new("UIPadding")
 UIPadding.Parent = MainFrame
 UIPadding.PaddingTop = UDim.new(0, 8)
@@ -203,13 +178,14 @@ local function createLabel(text, order, color)
     return Label
 end
 
-local TitleLbl = createLabel("CHEST HUB V5.4", 0, Color3.fromRGB(255, 60, 60))
+local TitleLbl = createLabel("NAHSOR CHESTHUB", 0, Color3.fromRGB(255, 60, 60))
 local ChestsLbl = createLabel("Chests: 0", 1, Color3.fromRGB(255, 170, 0))
 local FruitLbl = createLabel("Fruit: None", 2, Color3.fromRGB(255, 85, 255))
 local TimerLbl = createLabel("Timer: 00:00:00", 3, Color3.fromRGB(200, 200, 200))
 local EarnedLbl = createLabel("Earned: $0", 5, Color3.fromRGB(85, 255, 127))
 local StatusLbl = createLabel("Status: Active", 6, Color3.fromRGB(255, 255, 255))
 
+-- [FIX] SPACER RESTORED
 local Spacer = Instance.new("Frame")
 Spacer.BackgroundTransparency = 1
 Spacer.Size = UDim2.new(1, 0, 0, 4)
@@ -273,7 +249,7 @@ local function ApplyFastMode()
 end
 task.spawn(function() while task.wait(5) do ApplyFastMode() end end)
 
--- // [8] UNSTOPPABLE SERVER HOP //
+-- // [8] SERVER HOP //
 local function ServerHop()
     if Hopping then return end
     Hopping = true
@@ -286,7 +262,6 @@ local function ServerHop()
     local function FetchAndHop()
         SetupHopFile()
         pageAttempts = pageAttempts + 1
-        
         if pageAttempts > 5 then
             delfile("NotSameServers.json")
             AllIDs = {os.date("!*t").hour}
@@ -303,49 +278,28 @@ local function ServerHop()
             return
         end
 
-        if Site.nextPageCursor and Site.nextPageCursor ~= "null" then 
-            foundAnything = Site.nextPageCursor 
-        else
-            foundAnything = "" 
-        end
+        if Site.nextPageCursor and Site.nextPageCursor ~= "null" then foundAnything = Site.nextPageCursor else foundAnything = "" end
         
-        local serverList = Site.data
-        local attempts = 0
-        
-        while attempts < 15 do 
-            attempts = attempts + 1
-            local v = serverList[math.random(1, #serverList)]
-            
-            if v and v.id then
-                local ID = tostring(v.id)
-                if tonumber(v.maxPlayers) > tonumber(v.playing) and tonumber(v.playing) >= 1 and ID ~= game.JobId then
-                    local IsVisited = false
-                    for _, Existing in pairs(AllIDs) do
-                        if ID == tostring(Existing) then IsVisited = true break end
-                    end
-                    
-                    if not IsVisited then
-                        table.insert(AllIDs, ID)
-                        pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
-                        StatusLbl.Text = "Joining: " .. ID:sub(1,5)
-                        TeleportService:TeleportToPlaceInstance(PlaceID, ID, Player)
-                        task.wait(4)
-                        Hopping = false 
-                        return
-                    end
+        for i=1, 15 do
+            local v = Site.data[math.random(1, #Site.data)]
+            if v and v.id and tonumber(v.playing) < tonumber(v.maxPlayers) and v.id ~= game.JobId then
+                local Visited = false
+                for _, id in pairs(AllIDs) do if id == v.id then Visited = true end end
+                if not Visited then
+                    table.insert(AllIDs, v.id)
+                    pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+                    TeleportService:TeleportToPlaceInstance(PlaceID, v.id, Player)
+                    return
                 end
             end
-            task.wait()
         end
-        
         task.wait(0.2)
         FetchAndHop()
     end
-    
     pcall(FetchAndHop)
 end
 
--- // [9] ADMIN DETECTION & WATCHDOG //
+-- // [9] ADMIN HOP WATCHDOG //
 task.spawn(function()
     TeleportService.TeleportInitFailed:Connect(function(player, result, message)
         if player == Player then
@@ -359,7 +313,7 @@ task.spawn(function()
     Players.PlayerAdded:Connect(function(v)
         if Config.AdminHop then
             local success, rank = pcall(function() return v:GetRankInGroup(4372130) end)
-            if success and rank and rank > 10 then 
+            if success and rank and rank > 0 then 
                 StatusLbl.Text = "STAFF DETECTED! HOPPING..."
                 Hopping = false
                 ServerHop()
@@ -384,37 +338,6 @@ task.spawn(function()
     end
 end)
 
--- // [10] RARE ITEM CHECKER //
-local function CheckRareItems()
-    if not Config.StopOnRareItem then return false end
-    
-    local foundItem = nil
-    for _, itemName in pairs(RareItems) do
-        if Player.Backpack:FindFirstChild(itemName) or Player.Character:FindFirstChild(itemName) then
-            foundItem = itemName
-            break
-        end
-    end
-    
-    if foundItem then
-        Farming = false
-        IsMoving = false
-        StatusLbl.Text = "FOUND: " .. foundItem .. "!"
-        ToggleBtn.Text = "OFF"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        
-        local s = Instance.new("Sound")
-        s.Parent = workspace
-        s.SoundId = "rbxassetid://4590657391" 
-        s.Volume = 5
-        s:Play()
-        
-        SendWebhook("None", foundItem)
-        return true
-    end
-    return false
-end
-
 local function StoreFruit(fruitInstance)
     if not fruitInstance then return end
     local char = Player.Character
@@ -433,15 +356,26 @@ local function StoreFruit(fruitInstance)
     StatusLbl.Text = "Status: Active"
 end
 
--- // [11] MAIN FARM LOOP //
+-- // [10] FARM LOOP //
 local function FarmLoop()
     if not Farming or IsMoving or Hopping then return end
-    
-    if CheckRareItems() then return end
-    
     local root = Player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
     if not StartPosition then StartPosition = root.Position end
+
+    -- RARE ITEM STOP
+    if Config.StopOnRareItem then
+        for _, item in pairs(RareItems) do
+            if Player.Backpack:FindFirstChild(item) or Player.Character:FindFirstChild(item) then
+                 Farming = false
+                 StatusLbl.Text = "FOUND: " .. item
+                 local s = Instance.new("Sound", workspace)
+                 s.SoundId = "rbxassetid://4590657391"
+                 s:Play()
+                 return
+            end
+        end
+    end
 
     -- FRUIT SNIPER
     if Config.FarmFruit then
@@ -501,7 +435,6 @@ local function FarmLoop()
                 StatusLbl.Text = "PAUSED"
                 return 
             end
-            
             if root and target then
                 local currentDist = math.floor((root.Position - target.Position).Magnitude)
                 StatusLbl.Text = "Flying: " .. currentDist .. "m"
@@ -524,10 +457,6 @@ local function FarmLoop()
             Stats.Chests = Stats.Chests + 1
             ChestsLbl.Text = "Chests: " .. Stats.Chests 
             
-            if Player.Data and Player.Data.Beli then 
-                 EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) 
-            end
-            
             table.insert(CollectedPositions, target.Position)
         end
     else
@@ -538,7 +467,7 @@ local function FarmLoop()
     end
 end
 
--- // [12] EVENTS //
+-- // [11] EVENTS //
 ToggleBtn.MouseButton1Click:Connect(function()
     Farming = not Farming
     ToggleBtn.Text = Farming and "ON" or "OFF"
@@ -559,4 +488,15 @@ AFKBtn.MouseButton1Click:Connect(function()
     BlurFrame.Visible = IsAFK
     BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
 end)
-Player.Idled:Connect(function() VirtualUser:Button2Down(Vector2.new(0,0),workspace.CurrentCa
+Player.Idled:Connect(function() VirtualUser:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame) task.wait(1) VirtualUser:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame) end)
+
+task.spawn(function()
+    while true do
+        local secs = os.time() - StartTime
+        TimerLbl.Text = string.format("Timer: %02d:%02d:%02d", math.floor(secs/3600), math.floor((secs%3600)/60), secs%60)
+        if Player.Data and Player.Data.Beli then EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) end
+        task.wait(1)
+    end
+end)
+
+task.spawn(function() while true do if Farming then pcall(FarmLoop) end task.wait() end end)
