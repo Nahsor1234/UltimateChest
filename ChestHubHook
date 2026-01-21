@@ -1,4 +1,5 @@
--- // ULTIMATE CHEST HUB V4.7 (FIXED DOUBLE COUNTING) //
+-- // ULTIMATE CHEST HUB V5.4 (SYNTAX FIXED) //
+print(">> SCRIPT STARTING... <<")
 
 -- // [1] SERVICES //
 local Players = game:GetService("Players")
@@ -12,17 +13,19 @@ local Lighting = game:GetService("Lighting")
 local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 
-if not game:IsLoaded() then game.Loaded:Wait() end
-local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local Player = Players.LocalPlayer
+if not Player then Player = Players.PlayerAdded:Wait() end
 
 -- // [2] CONFIGURATION //
-local DefaultConfig = {
+-- Default Settings
+local Config = {
     WebhookURL = "",
     TweenSpeed = 350,       
-    CollectionWait = 0.1, -- Ultra Fast
+    CollectionWait = 0.1, 
     AFKMode = true,
     FastMode = true,
     StopOnRareItem = true,
+    AdminHop = true,       
     FarmChests = true,
     FarmFruit = true,
     HopDelay = 5,
@@ -31,18 +34,22 @@ local DefaultConfig = {
     MaxFarmDistance = 4000
 }
 
--- Load UserConfig
-local Config = DefaultConfig
-if getgenv().UserConfig then
-    for key, val in pairs(getgenv().UserConfig) do
-        Config[key] = val
+-- [SAFE LOADER] - Fixed the loop that caused Error 567
+pcall(function()
+    if getgenv and getgenv().UserConfig then
+        local userConf = getgenv().UserConfig
+        if userConf.TweenSpeed then Config.TweenSpeed = userConf.TweenSpeed end
+        if userConf.AFKMode ~= nil then Config.AFKMode = userConf.AFKMode end
+        if userConf.FastMode ~= nil then Config.FastMode = userConf.FastMode end
+        if userConf.StopOnRareItem ~= nil then Config.StopOnRareItem = userConf.StopOnRareItem end
+        if userConf.FarmChests ~= nil then Config.FarmChests = userConf.FarmChests end
+        print(">> USER CONFIG LOADED")
     end
-end
+end)
 
 -- // [3] VARIABLES //
-local Stats = { Chests = 0, ZonesDone = 0 }
+local Stats = { Chests = 0 }
 local VisitedChests = {} 
--- [FIX] New Table to track chest POSITIONS instead of just parts
 local CollectedPositions = {} 
 local Farming = true 
 local IsMoving = false 
@@ -50,13 +57,12 @@ local StartTime = os.time()
 local StartMoney = 0
 local StartPosition = nil
 local ChestRetryCounter = 0 
-local RareItems = {"God's Chalice", "Fist of Darkness"}
+local RareItems = {"God's Chalice", "Fist of Darkness"} 
 local IsAFK = Config.AFKMode 
 local PlaceID = game.PlaceId
 local AllIDs = {}
 local foundAnything = ""
 local Hopping = false 
-local LastCounterUpdate = 0 
 
 -- // [4] FILE SYSTEM //
 local function SetupHopFile()
@@ -75,11 +81,13 @@ local function SetupHopFile()
 end
 SetupHopFile()
 
-pcall(function() StartMoney = Player.Data.Beli.Value end)
-pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
+task.spawn(function()
+    pcall(function() StartMoney = Player.Data.Beli.Value end)
+    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
+end)
 
 -- // [5] WEBHOOK //
-local function SendWebhook(fruitName)
+local function SendWebhook(fruitName, rareItem)
     if Config.WebhookURL == "" then return end
     task.spawn(function()
         local request = http_request or request or HttpPost or syn.request
@@ -93,19 +101,25 @@ local function SendWebhook(fruitName)
         local duration = os.time() - StartTime
         local timeString = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
 
+        local title = "💰 SERVER HOP REPORT"
+        local color = 65280
+        
+        if fruitName ~= "None" then title = "🍎 FRUIT SNIPED!"; color = 16711680 end
+        if rareItem then title = "🚨 RARE ITEM FOUND!"; color = 16753920 end
+
         local desc = ""
         desc = desc .. "**Player:** " .. Player.Name .. "\n"
         desc = desc .. "**Time:** " .. timeString .. "\n"
         desc = desc .. "**Chests:** " .. tostring(Stats.Chests) .. "\n"
         desc = desc .. "**Money:** $" .. tostring(earned) .. "\n"
         desc = desc .. "**Total:** $" .. tostring(currentBeli) .. "\n"
-        desc = desc .. "**Fruit:** " .. (fruitName or "None")
+        desc = desc .. "**Item:** " .. (rareItem or fruitName or "None")
 
         local data = {
             ["embeds"] = {{
-                ["title"] = fruitName ~= "None" and "🍎 FRUIT SNIPED!" or "💰 SERVER HOP REPORT",
+                ["title"] = title,
                 ["description"] = desc, 
-                ["color"] = fruitName ~= "None" and 16711680 or 65280
+                ["color"] = color
             }}
         }
         
@@ -121,6 +135,7 @@ local function SendWebhook(fruitName)
 end
 
 -- // [6] UI SETUP //
+print(">> LOADING UI... <<")
 pcall(function()
     if Player:FindFirstChild("PlayerGui") then
         for _, v in pairs(Player.PlayerGui:GetChildren()) do if v.Name == "ChestHub_Core" then v:Destroy() end end
@@ -130,7 +145,13 @@ end)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ChestHub_Core"
 ScreenGui.IgnoreGuiInset = true 
-ScreenGui.Parent = Player:WaitForChild("PlayerGui") 
+local playerGui = Player:WaitForChild("PlayerGui", 5) 
+if not playerGui then playerGui = Player:FindFirstChild("PlayerGui") end
+if playerGui then
+    ScreenGui.Parent = playerGui
+else
+    ScreenGui.Parent = CoreGui 
+end
 
 local BlurFrame = Instance.new("Frame")
 BlurFrame.Name = "AFKOverlay"
@@ -182,11 +203,10 @@ local function createLabel(text, order, color)
     return Label
 end
 
-local TitleLbl = createLabel("CHEST HUB", 0, Color3.fromRGB(255, 60, 60))
+local TitleLbl = createLabel("CHEST HUB V5.4", 0, Color3.fromRGB(255, 60, 60))
 local ChestsLbl = createLabel("Chests: 0", 1, Color3.fromRGB(255, 170, 0))
 local FruitLbl = createLabel("Fruit: None", 2, Color3.fromRGB(255, 85, 255))
 local TimerLbl = createLabel("Timer: 00:00:00", 3, Color3.fromRGB(200, 200, 200))
-local ZonesLbl = createLabel("Zones Done: 0", 4, Color3.fromRGB(0, 255, 255))
 local EarnedLbl = createLabel("Earned: $0", 5, Color3.fromRGB(85, 255, 127))
 local StatusLbl = createLabel("Status: Active", 6, Color3.fromRGB(255, 255, 255))
 
@@ -253,7 +273,7 @@ local function ApplyFastMode()
 end
 task.spawn(function() while task.wait(5) do ApplyFastMode() end end)
 
--- // [8] UNSTOPPABLE SERVER HOP (RANDOMIZED & LOOP-FIXED) //
+-- // [8] UNSTOPPABLE SERVER HOP //
 local function ServerHop()
     if Hopping then return end
     Hopping = true
@@ -267,7 +287,6 @@ local function ServerHop()
         SetupHopFile()
         pageAttempts = pageAttempts + 1
         
-        -- If we are stuck for too long, wipe the list and start fresh
         if pageAttempts > 5 then
             delfile("NotSameServers.json")
             AllIDs = {os.date("!*t").hour}
@@ -284,17 +303,16 @@ local function ServerHop()
             return
         end
 
-        -- Move cursor for the next attempt
         if Site.nextPageCursor and Site.nextPageCursor ~= "null" then 
             foundAnything = Site.nextPageCursor 
         else
-            foundAnything = "" -- Reset to page 1 if we hit the end
+            foundAnything = "" 
         end
         
         local serverList = Site.data
         local attempts = 0
         
-        while attempts < 15 do -- Increased random tries
+        while attempts < 15 do 
             attempts = attempts + 1
             local v = serverList[math.random(1, #serverList)]
             
@@ -320,7 +338,6 @@ local function ServerHop()
             task.wait()
         end
         
-        -- If we reach here, this page is exhausted. Jump to the next cursor.
         task.wait(0.2)
         FetchAndHop()
     end
@@ -328,7 +345,7 @@ local function ServerHop()
     pcall(FetchAndHop)
 end
 
--- // [9] ULTIMATE REJOIN WATCHDOG //
+-- // [9] ADMIN DETECTION & WATCHDOG //
 task.spawn(function()
     TeleportService.TeleportInitFailed:Connect(function(player, result, message)
         if player == Player then
@@ -336,6 +353,17 @@ task.spawn(function()
             Hopping = false 
             task.wait(2)
             ServerHop()
+        end
+    end)
+    
+    Players.PlayerAdded:Connect(function(v)
+        if Config.AdminHop then
+            local success, rank = pcall(function() return v:GetRankInGroup(4372130) end)
+            if success and rank and rank > 10 then 
+                StatusLbl.Text = "STAFF DETECTED! HOPPING..."
+                Hopping = false
+                ServerHop()
+            end
         end
     end)
 
@@ -356,6 +384,37 @@ task.spawn(function()
     end
 end)
 
+-- // [10] RARE ITEM CHECKER //
+local function CheckRareItems()
+    if not Config.StopOnRareItem then return false end
+    
+    local foundItem = nil
+    for _, itemName in pairs(RareItems) do
+        if Player.Backpack:FindFirstChild(itemName) or Player.Character:FindFirstChild(itemName) then
+            foundItem = itemName
+            break
+        end
+    end
+    
+    if foundItem then
+        Farming = false
+        IsMoving = false
+        StatusLbl.Text = "FOUND: " .. foundItem .. "!"
+        ToggleBtn.Text = "OFF"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        
+        local s = Instance.new("Sound")
+        s.Parent = workspace
+        s.SoundId = "rbxassetid://4590657391" 
+        s.Volume = 5
+        s:Play()
+        
+        SendWebhook("None", foundItem)
+        return true
+    end
+    return false
+end
+
 local function StoreFruit(fruitInstance)
     if not fruitInstance then return end
     local char = Player.Character
@@ -374,21 +433,28 @@ local function StoreFruit(fruitInstance)
     StatusLbl.Text = "Status: Active"
 end
 
--- // [10] MAIN FARM LOOP (TRUE ZONE COUNTING) //
+-- // [11] MAIN FARM LOOP //
 local function FarmLoop()
     if not Farming or IsMoving or Hopping then return end
+    
+    if CheckRareItems() then return end
+    
     local root = Player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
     if not StartPosition then StartPosition = root.Position end
 
-    -- [A] FRUIT SNIPER (Priority)
+    -- FRUIT SNIPER
     if Config.FarmFruit then
         for _, v in pairs(Workspace:GetChildren()) do
             if v:IsA("Tool") and v.Name:find("Fruit") and v:FindFirstChild("Handle") then
                 StatusLbl.Text = "Sniping..."
                 FruitLbl.Text = "Fruit: " .. v.Name
                 root.CFrame = v.Handle.CFrame 
-                task.wait(0.1)
+                if v.Handle:FindFirstChild("TouchInterest") then
+                    firetouchinterest(root, v.Handle, 0)
+                    firetouchinterest(root, v.Handle, 1)
+                end
+                task.wait(0.1) 
                 local picked = Player.Backpack:FindFirstChild(v.Name) or Player.Character:FindFirstChild(v.Name)
                 if picked then StoreFruit(picked) end
                 return 
@@ -396,14 +462,13 @@ local function FarmLoop()
         end
     end
 
-    -- [B] TARGET SEARCH
+    -- CHEST FARMING
     local target, minDist = nil, math.huge
     if Config.FarmChests then
         for _, v in pairs(Workspace:GetDescendants()) do
             if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
                 local distFromStart = (v.Position - StartPosition).Magnitude
                 
-                -- Proximity check to avoid lid/base double-counting
                 local isDuplicate = false
                 for _, pos in pairs(CollectedPositions) do
                     if (v.Position - pos).Magnitude < 4 then
@@ -420,59 +485,70 @@ local function FarmLoop()
         end
     end
 
-    -- [C] EXECUTION
     if target then
         ChestRetryCounter = 0 
-        local targetPos = target.Position -- Remember the spot
-        local dist = math.floor((root.Position - targetPos).Magnitude)
-        
-        IsMoving = true
+        local dist = math.floor((root.Position - target.Position).Magnitude)
         StatusLbl.Text = "Travel: " .. dist .. "m"
+        IsMoving = true
         
-        local tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)})
+        local tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
         tween:Play()
         
-        tween.Completed:Wait() -- Wait until we arrive
-        IsMoving = false
+        while tween.PlaybackState == Enum.PlaybackState.Playing do
+            if not Farming then 
+                tween:Cancel() 
+                IsMoving = false 
+                StatusLbl.Text = "PAUSED"
+                return 
+            end
+            
+            if root and target then
+                local currentDist = math.floor((root.Position - target.Position).Magnitude)
+                StatusLbl.Text = "Flying: " .. currentDist .. "m"
+            end
+            task.wait()
+        end
         
+        IsMoving = false
         StatusLbl.Text = "Collecting..."
         
-        -- Collect the specific target
         if target:IsDescendantOf(Workspace) then
             VisitedChests[target] = true 
-            root.CFrame = CFrame.new(targetPos)
+            root.CFrame = target.CFrame 
             
             firetouchinterest(root, target, 0)
             firetouchinterest(root, target, 1)
             
             task.wait(Config.CollectionWait)
             
-            -- [COUNT CHEST]: Only increases the individual count
             Stats.Chests = Stats.Chests + 1
             ChestsLbl.Text = "Chests: " .. Stats.Chests 
-            table.insert(CollectedPositions, targetPos)
             
-            -- [COUNT ZONE]: Only increases once per successful travel
-            Stats.ZonesDone = Stats.ZonesDone + 1
-            ZonesLbl.Text = "Zones Done: " .. Stats.ZonesDone
+            if Player.Data and Player.Data.Beli then 
+                 EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) 
+            end
+            
+            table.insert(CollectedPositions, target.Position)
         end
     else
-        -- [D] RETRY / HOP LOGIC
         ChestRetryCounter = ChestRetryCounter + 1
         StatusLbl.Text = "Scan: " .. ChestRetryCounter .. "/20"
         
-        if ChestRetryCounter >= 20 then 
-            ServerHop() 
-        end
+        if ChestRetryCounter >= 20 then ServerHop() end
     end
 end
 
--- // [11] EVENTS //
+-- // [12] EVENTS //
 ToggleBtn.MouseButton1Click:Connect(function()
     Farming = not Farming
     ToggleBtn.Text = Farming and "ON" or "OFF"
     ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
-    if Farming then StartPosition = Player.Character.HumanoidRootPart.Position end
+    if Farming then 
+        StartPosition = Player.Character.HumanoidRootPart.Position 
+    else
+        IsMoving = false
+        StatusLbl.Text = "STOPPED"
+    end
 end)
 HopBtn.MouseButton1Click:Connect(ServerHop)
 AFKBtn.MouseButton1Click:Connect(function()
@@ -483,15 +559,4 @@ AFKBtn.MouseButton1Click:Connect(function()
     BlurFrame.Visible = IsAFK
     BlurFrame.BackgroundTransparency = IsAFK and 0 or 1
 end)
-Player.Idled:Connect(function() VirtualUser:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame) task.wait(1) VirtualUser:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame) end)
-
-task.spawn(function()
-    while true do
-        local secs = os.time() - StartTime
-        TimerLbl.Text = string.format("Timer: %02d:%02d:%02d", math.floor(secs/3600), math.floor((secs%3600)/60), secs%60)
-        if Player.Data and Player.Data.Beli then EarnedLbl.Text = "Earned: $" .. (Player.Data.Beli.Value - StartMoney) end
-        task.wait(1)
-    end
-end)
-
-task.spawn(function() while true do if Farming then pcall(FarmLoop) end task.wait() end end)
+Player.Idled:Connect(function() VirtualUser:Button2Down(Vector2.new(0,0),workspace.CurrentCa
