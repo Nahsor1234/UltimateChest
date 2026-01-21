@@ -1,4 +1,4 @@
--- // ULTIMATE CHEST HUB V4 (FIRETOUCH ONLY + SYNCED COUNTER) //
+-- // ULTIMATE CHEST HUB V4.7 (FIXED DOUBLE COUNTING) //
 
 -- // [1] SERVICES //
 local Players = game:GetService("Players")
@@ -12,21 +12,20 @@ local Lighting = game:GetService("Lighting")
 local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 
+if not game:IsLoaded() then game.Loaded:Wait() end
 local Player = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 -- // [2] CONFIGURATION //
 local DefaultConfig = {
-    WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
+    WebhookURL = "",
     TweenSpeed = 350,       
-    CollectionWait = 0.25, -- Keeps the counter synced with FireTouch
+    CollectionWait = 0.1, -- Ultra Fast
     AFKMode = true,
     FastMode = true,
     StopOnRareItem = true,
     FarmChests = true,
     FarmFruit = true,
     HopDelay = 5,
-    MinGroupRank = 2,
-    AdminGroupID = 4372130,
     CircleRadius = 600,
     IslandBlacklistRadius = 600,
     MaxFarmDistance = 4000
@@ -43,7 +42,8 @@ end
 -- // [3] VARIABLES //
 local Stats = { Chests = 0, ZonesDone = 0 }
 local VisitedChests = {} 
-local FinishedIslandPositions = {} 
+-- [FIX] New Table to track chest POSITIONS instead of just parts
+local CollectedPositions = {} 
 local Farming = true 
 local IsMoving = false 
 local StartTime = os.time()
@@ -55,19 +55,19 @@ local IsAFK = Config.AFKMode
 local PlaceID = game.PlaceId
 local AllIDs = {}
 local foundAnything = ""
-local actualHour = os.date("!*t").hour
 local Hopping = false 
 local LastCounterUpdate = 0 
 
--- // [4] HOP FILE //
+-- // [4] FILE SYSTEM //
 local function SetupHopFile()
     pcall(function()
+        local currentHour = os.date("!*t").hour
         if not isfile("NotSameServers.json") then
-            writefile("NotSameServers.json", HttpService:JSONEncode({actualHour}))
+            writefile("NotSameServers.json", HttpService:JSONEncode({currentHour}))
         else
             AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json"))
-            if tonumber(AllIDs[1]) ~= actualHour then
-                 AllIDs = {actualHour}
+            if tonumber(AllIDs[1]) ~= currentHour then
+                 AllIDs = {currentHour}
                  writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs))
             end
         end
@@ -80,6 +80,7 @@ pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirat
 
 -- // [5] WEBHOOK //
 local function SendWebhook(fruitName)
+    if Config.WebhookURL == "" then return end
     task.spawn(function()
         local request = http_request or request or HttpPost or syn.request
         if not request then return end
@@ -97,7 +98,7 @@ local function SendWebhook(fruitName)
         desc = desc .. "**Time:** " .. timeString .. "\n"
         desc = desc .. "**Chests:** " .. tostring(Stats.Chests) .. "\n"
         desc = desc .. "**Money:** $" .. tostring(earned) .. "\n"
-        desc = desc .. "**Total.Money:** $" .. tostring(currentBeli) .. "\n"
+        desc = desc .. "**Total:** $" .. tostring(currentBeli) .. "\n"
         desc = desc .. "**Fruit:** " .. (fruitName or "None")
 
         local data = {
@@ -181,7 +182,7 @@ local function createLabel(text, order, color)
     return Label
 end
 
-local TitleLbl = createLabel("CHEST HUB V4 (FIRETOUCH)", 0, Color3.fromRGB(255, 60, 60))
+local TitleLbl = createLabel("CHEST HUB V4.7 (PERFECT COUNT)", 0, Color3.fromRGB(255, 60, 60))
 local ChestsLbl = createLabel("Chests: 0", 1, Color3.fromRGB(255, 170, 0))
 local FruitLbl = createLabel("Fruit: None", 2, Color3.fromRGB(255, 85, 255))
 local TimerLbl = createLabel("Timer: 00:00:00", 3, Color3.fromRGB(200, 200, 200))
@@ -252,57 +253,91 @@ local function ApplyFastMode()
 end
 task.spawn(function() while task.wait(5) do ApplyFastMode() end end)
 
--- // [8] LOGIC //
+-- // [8] ULTIMATE SERVER HOP //
 local function ServerHop()
     if Hopping then return end
     Hopping = true
     SendWebhook("None") 
+    StatusLbl.Text = "Finding New Server..."
     
-    StatusLbl.Text = "Smart Hopping..."
     task.wait(Config.HopDelay)
-    SetupHopFile()
     
     local function FetchAndHop()
-        local Site
-        if foundAnything == "" then
-            Site = HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'))
-        else
-            Site = HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. foundAnything))
+        SetupHopFile()
+        local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
+        if foundAnything ~= "" then url = url .. "&cursor=" .. foundAnything end
+        
+        local success, Site = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+        if not success or not Site then 
+            task.wait(2)
+            FetchAndHop() 
+            return
         end
+
         if Site.nextPageCursor and Site.nextPageCursor ~= "null" then foundAnything = Site.nextPageCursor end
         
-        for _, v in pairs(Site.data) do
-            local ID = tostring(v.id)
-            if tonumber(v.maxPlayers) > tonumber(v.playing) and tonumber(v.playing) >= 2 then
-                local Possible = true
-                for _, Existing in pairs(AllIDs) do
-                    if ID == tostring(Existing) then Possible = false break end
-                end
-                if Possible then
-                    table.insert(AllIDs, ID)
-                    pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
-                    TeleportService:TeleportToPlaceInstance(PlaceID, ID, Player)
-                    return
+        local serverList = Site.data
+        if not serverList then FetchAndHop() return end
+
+        local attempts = 0
+        local maxAttempts = 10 
+        
+        while attempts < maxAttempts do
+            attempts = attempts + 1
+            local v = serverList[math.random(1, #serverList)]
+            
+            if v and v.id then
+                local ID = tostring(v.id)
+                if tonumber(v.maxPlayers) > tonumber(v.playing) and tonumber(v.playing) >= 1 and ID ~= game.JobId then
+                    local IsVisited = false
+                    for _, Existing in pairs(AllIDs) do
+                        if ID == tostring(Existing) then IsVisited = true break end
+                    end
+                    
+                    if not IsVisited then
+                        table.insert(AllIDs, ID)
+                        pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+                        StatusLbl.Text = "Joining: " .. ID:sub(1,5)
+                        TeleportService:TeleportToPlaceInstance(PlaceID, ID, Player)
+                        
+                        task.wait(4)
+                        Hopping = false 
+                        return
+                    end
                 end
             end
+            task.wait()
         end
-        task.wait(0.1)
+        
+        task.wait(0.5)
         FetchAndHop()
     end
+    
     pcall(FetchAndHop)
 end
 
--- ERROR WATCHDOG
+-- // [9] ULTIMATE REJOIN WATCHDOG //
 task.spawn(function()
+    TeleportService.TeleportInitFailed:Connect(function(player, result, message)
+        if player == Player then
+            StatusLbl.Text = "TP FAILED: RETRYING..."
+            Hopping = false 
+            task.wait(2)
+            ServerHop()
+        end
+    end)
+
     while true do
-        task.wait(2)
+        task.wait(3) 
         pcall(function()
             local prompt = CoreGui:FindFirstChild("RobloxPromptGui")
             if prompt and prompt:FindFirstChild("promptOverlay") then
                 local errorPopup = prompt.promptOverlay:FindFirstChild("ErrorPrompt")
                 if errorPopup and errorPopup.Visible then
-                    StatusLbl.Text = "ERROR DETECTED! HOPPING..."
-                    ServerHop()
+                    StatusLbl.Text = "ERROR! HOPPING..."
+                    Hopping = false 
+                    task.wait(1)
+                    ServerHop() 
                 end
             end
         end)
@@ -327,6 +362,7 @@ local function StoreFruit(fruitInstance)
     StatusLbl.Text = "Status: Active"
 end
 
+-- // [10] MAIN FARM LOOP (FIXED DOUBLE COUNTING) //
 local function FarmLoop()
     if not Farming or IsMoving or Hopping then return end
     local root = Player.Character:FindFirstChild("HumanoidRootPart")
@@ -344,7 +380,7 @@ local function FarmLoop()
                     firetouchinterest(root, v.Handle, 0)
                     firetouchinterest(root, v.Handle, 1)
                 end
-                task.wait(0.3)
+                task.wait(0.1) 
                 local picked = Player.Backpack:FindFirstChild(v.Name) or Player.Character:FindFirstChild(v.Name)
                 if picked then StoreFruit(picked) end
                 return 
@@ -356,13 +392,19 @@ local function FarmLoop()
     local target, minDist = nil, math.huge
     if Config.FarmChests then
         for _, v in pairs(Workspace:GetDescendants()) do
-            if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") and v:FindFirstChild("TouchInterest") then
-                local blacklisted = false
-                for _, pos in pairs(FinishedIslandPositions) do
-                    if (v.Position - pos).Magnitude < Config.IslandBlacklistRadius then blacklisted = true break end
-                end
+            if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
                 local distFromStart = (v.Position - StartPosition).Magnitude
-                if distFromStart < Config.MaxFarmDistance and not VisitedChests[v] and not blacklisted then
+                
+                -- [FIX] NEW LOGIC: FILTER DUPLICATE PARTS
+                local isDuplicate = false
+                for _, pos in pairs(CollectedPositions) do
+                    if (v.Position - pos).Magnitude < 4 then -- If close to existing collected chest
+                        isDuplicate = true
+                        break 
+                    end
+                end
+
+                if distFromStart < Config.MaxFarmDistance and not VisitedChests[v] and not isDuplicate then
                     local d = (root.Position - v.Position).Magnitude
                     if d < minDist then target, minDist = v, d end
                 end
@@ -376,7 +418,6 @@ local function FarmLoop()
         StatusLbl.Text = "Travel: " .. dist .. "m"
         IsMoving = true
         
-        -- // STANDARD FLYING (NO HYBRID TELEPORT) //
         local tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
         tween:Play()
         while tween.PlaybackState == Enum.PlaybackState.Playing do
@@ -387,47 +428,39 @@ local function FarmLoop()
             end
             task.wait()
         end
-        -- // ---------------------------------- //
         
         IsMoving = false
         StatusLbl.Text = "Collecting..."
         
-        for _, v in pairs(Workspace:GetDescendants()) do
-            if not Farming then return end 
-            if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") and (v.Position - target.Position).Magnitude < Config.CircleRadius then
-                if not VisitedChests[v] then
-                    VisitedChests[v] = true 
-                    root.CFrame = v.CFrame 
-                    
-                    -- // INSTANT COLLECT (FIRETOUCH) //
-                    if v:FindFirstChild("TouchInterest") then
-                        firetouchinterest(root, v, 0)
-                        firetouchinterest(root, v, 1)
-                    end
-                    -- // -------------------------- //
-                    
-                    task.wait(Config.CollectionWait)
-                    
-                    -- // SYNCED COUNTER //
-                    if (os.clock() - LastCounterUpdate) >= Config.CollectionWait then
-                         Stats.Chests = Stats.Chests + 1
-                         ChestsLbl.Text = "Chests: " .. Stats.Chests 
-                         LastCounterUpdate = os.clock()
-                    end
-                end
-            end
+        if target:IsDescendantOf(Workspace) then
+            VisitedChests[target] = true 
+            root.CFrame = target.CFrame 
+            
+            firetouchinterest(root, target, 0)
+            firetouchinterest(root, target, 1)
+            
+            task.wait(Config.CollectionWait)
+            
+            -- [FIX] SIMPLIFIED COUNTING LOGIC
+            -- We just count +1 immediately. No timer check needed because "isDuplicate" protects us.
+            Stats.Chests = Stats.Chests + 1
+            ChestsLbl.Text = "Chests: " .. Stats.Chests 
+            
+            -- Record this position so we don't count its 'lid' next
+            table.insert(CollectedPositions, target.Position)
         end
-        table.insert(FinishedIslandPositions, target.Position)
+        
         Stats.ZonesDone = Stats.ZonesDone + 1
-        ZonesLbl.Text = "Zones Done: " .. Stats.ZonesDone
+        ZonesLbl.Text = "Total: " .. Stats.ZonesDone
     else
         ChestRetryCounter = ChestRetryCounter + 1
-        StatusLbl.Text = "Search: " .. ChestRetryCounter .. "/5"
-        if ChestRetryCounter >= 5 then ServerHop() end
+        StatusLbl.Text = "Scan: " .. ChestRetryCounter .. "/20"
+        
+        if ChestRetryCounter >= 20 then ServerHop() end
     end
 end
 
--- // [10] EVENTS & LOOPS //
+-- // [11] EVENTS //
 ToggleBtn.MouseButton1Click:Connect(function()
     Farming = not Farming
     ToggleBtn.Text = Farming and "ON" or "OFF"
@@ -454,4 +487,4 @@ task.spawn(function()
     end
 end)
 
-task.spawn(function() while true do if Farming then pcall(FarmLoop) end task.wait(0.5) end end)
+task.spawn(function() while true do if Farming then pcall(FarmLoop) end task.wait() end end)
