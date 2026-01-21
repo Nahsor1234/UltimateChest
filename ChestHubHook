@@ -182,7 +182,7 @@ local function createLabel(text, order, color)
     return Label
 end
 
-local TitleLbl = createLabel("CHEST HUB V4.7 (PERFECT COUNT)", 0, Color3.fromRGB(255, 60, 60))
+local TitleLbl = createLabel("CHEST HUB", 0, Color3.fromRGB(255, 60, 60))
 local ChestsLbl = createLabel("Chests: 0", 1, Color3.fromRGB(255, 170, 0))
 local FruitLbl = createLabel("Fruit: None", 2, Color3.fromRGB(255, 85, 255))
 local TimerLbl = createLabel("Timer: 00:00:00", 3, Color3.fromRGB(200, 200, 200))
