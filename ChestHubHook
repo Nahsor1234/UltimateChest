@@ -374,25 +374,21 @@ local function StoreFruit(fruitInstance)
     StatusLbl.Text = "Status: Active"
 end
 
--- // [10] MAIN FARM LOOP (FIXED LABELS & COUNTING) //
+-- // [10] MAIN FARM LOOP (TRUE ZONE COUNTING) //
 local function FarmLoop()
     if not Farming or IsMoving or Hopping then return end
     local root = Player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
     if not StartPosition then StartPosition = root.Position end
 
-    -- FRUIT SNIPER
+    -- [A] FRUIT SNIPER (Priority)
     if Config.FarmFruit then
         for _, v in pairs(Workspace:GetChildren()) do
             if v:IsA("Tool") and v.Name:find("Fruit") and v:FindFirstChild("Handle") then
                 StatusLbl.Text = "Sniping..."
                 FruitLbl.Text = "Fruit: " .. v.Name
                 root.CFrame = v.Handle.CFrame 
-                if v.Handle:FindFirstChild("TouchInterest") then
-                    firetouchinterest(root, v.Handle, 0)
-                    firetouchinterest(root, v.Handle, 1)
-                end
-                task.wait(0.1) 
+                task.wait(0.1)
                 local picked = Player.Backpack:FindFirstChild(v.Name) or Player.Character:FindFirstChild(v.Name)
                 if picked then StoreFruit(picked) end
                 return 
@@ -400,13 +396,14 @@ local function FarmLoop()
         end
     end
 
-    -- CHEST FARMING
+    -- [B] TARGET SEARCH
     local target, minDist = nil, math.huge
     if Config.FarmChests then
         for _, v in pairs(Workspace:GetDescendants()) do
             if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
                 local distFromStart = (v.Position - StartPosition).Magnitude
                 
+                -- Proximity check to avoid lid/base double-counting
                 local isDuplicate = false
                 for _, pos in pairs(CollectedPositions) do
                     if (v.Position - pos).Magnitude < 4 then
@@ -423,50 +420,50 @@ local function FarmLoop()
         end
     end
 
+    -- [C] EXECUTION
     if target then
         ChestRetryCounter = 0 
-        local dist = math.floor((root.Position - target.Position).Magnitude)
-        StatusLbl.Text = "Travel: " .. dist .. "m"
+        local targetPos = target.Position -- Remember the spot
+        local dist = math.floor((root.Position - targetPos).Magnitude)
+        
         IsMoving = true
+        StatusLbl.Text = "Travel: " .. dist .. "m"
         
-        local tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+        local tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)})
         tween:Play()
-        while tween.PlaybackState == Enum.PlaybackState.Playing do
-            if not Farming then tween:Cancel() IsMoving = false return end
-            if root and target then
-                local currentDist = math.floor((root.Position - target.Position).Magnitude)
-                StatusLbl.Text = "Flying: " .. currentDist .. "m"
-            end
-            task.wait()
-        end
         
+        tween.Completed:Wait() -- Wait until we arrive
         IsMoving = false
+        
         StatusLbl.Text = "Collecting..."
         
+        -- Collect the specific target
         if target:IsDescendantOf(Workspace) then
             VisitedChests[target] = true 
-            root.CFrame = target.CFrame 
+            root.CFrame = CFrame.new(targetPos)
             
             firetouchinterest(root, target, 0)
             firetouchinterest(root, target, 1)
             
             task.wait(Config.CollectionWait)
             
-            -- [LABEL FIX]: Count the chest
+            -- [COUNT CHEST]: Only increases the individual count
             Stats.Chests = Stats.Chests + 1
             ChestsLbl.Text = "Chests: " .. Stats.Chests 
+            table.insert(CollectedPositions, targetPos)
             
-            table.insert(CollectedPositions, target.Position)
-            
-            -- [LABEL FIX]: Count the Zone/Island separately
+            -- [COUNT ZONE]: Only increases once per successful travel
             Stats.ZonesDone = Stats.ZonesDone + 1
             ZonesLbl.Text = "Zones Done: " .. Stats.ZonesDone
         end
     else
+        -- [D] RETRY / HOP LOGIC
         ChestRetryCounter = ChestRetryCounter + 1
         StatusLbl.Text = "Scan: " .. ChestRetryCounter .. "/20"
         
-        if ChestRetryCounter >= 20 then ServerHop() end
+        if ChestRetryCounter >= 20 then 
+            ServerHop() 
+        end
     end
 end
 
