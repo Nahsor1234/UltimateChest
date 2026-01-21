@@ -374,7 +374,7 @@ local function StoreFruit(fruitInstance)
     StatusLbl.Text = "Status: Active"
 end
 
--- // [10] MAIN FARM LOOP (FIXED DOUBLE COUNTING) //
+-- // [10] MAIN FARM LOOP (FIXED LABELS & COUNTING) //
 local function FarmLoop()
     if not Farming or IsMoving or Hopping then return end
     local root = Player.Character:FindFirstChild("HumanoidRootPart")
@@ -407,10 +407,9 @@ local function FarmLoop()
             if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
                 local distFromStart = (v.Position - StartPosition).Magnitude
                 
-                -- [FIX] NEW LOGIC: FILTER DUPLICATE PARTS
                 local isDuplicate = false
                 for _, pos in pairs(CollectedPositions) do
-                    if (v.Position - pos).Magnitude < 4 then -- If close to existing collected chest
+                    if (v.Position - pos).Magnitude < 4 then
                         isDuplicate = true
                         break 
                     end
@@ -453,17 +452,16 @@ local function FarmLoop()
             
             task.wait(Config.CollectionWait)
             
-            -- [FIX] SIMPLIFIED COUNTING LOGIC
-            -- We just count +1 immediately. No timer check needed because "isDuplicate" protects us.
+            -- [LABEL FIX]: Count the chest
             Stats.Chests = Stats.Chests + 1
             ChestsLbl.Text = "Chests: " .. Stats.Chests 
             
-            -- Record this position so we don't count its 'lid' next
             table.insert(CollectedPositions, target.Position)
+            
+            -- [LABEL FIX]: Count the Zone/Island separately
+            Stats.ZonesDone = Stats.ZonesDone + 1
+            ZonesLbl.Text = "Zones Done: " .. Stats.ZonesDone
         end
-        
-        Stats.ZonesDone = Stats.ZonesDone + 1
-        ZonesLbl.Text = "Total: " .. Stats.ZonesDone
     else
         ChestRetryCounter = ChestRetryCounter + 1
         StatusLbl.Text = "Scan: " .. ChestRetryCounter .. "/20"
