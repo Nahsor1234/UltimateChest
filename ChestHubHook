@@ -253,7 +253,7 @@ local function ApplyFastMode()
 end
 task.spawn(function() while task.wait(5) do ApplyFastMode() end end)
 
--- // [8] ULTIMATE SERVER HOP //
+-- // [8] UNSTOPPABLE SERVER HOP (RANDOMIZED & LOOP-FIXED) //
 local function ServerHop()
     if Hopping then return end
     Hopping = true
@@ -262,27 +262,39 @@ local function ServerHop()
     
     task.wait(Config.HopDelay)
     
+    local pageAttempts = 0
     local function FetchAndHop()
         SetupHopFile()
+        pageAttempts = pageAttempts + 1
+        
+        -- If we are stuck for too long, wipe the list and start fresh
+        if pageAttempts > 5 then
+            delfile("NotSameServers.json")
+            AllIDs = {os.date("!*t").hour}
+            pageAttempts = 0
+        end
+
         local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
         if foundAnything ~= "" then url = url .. "&cursor=" .. foundAnything end
         
         local success, Site = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
-        if not success or not Site then 
+        if not success or not Site or not Site.data then 
             task.wait(2)
             FetchAndHop() 
             return
         end
 
-        if Site.nextPageCursor and Site.nextPageCursor ~= "null" then foundAnything = Site.nextPageCursor end
+        -- Move cursor for the next attempt
+        if Site.nextPageCursor and Site.nextPageCursor ~= "null" then 
+            foundAnything = Site.nextPageCursor 
+        else
+            foundAnything = "" -- Reset to page 1 if we hit the end
+        end
         
         local serverList = Site.data
-        if not serverList then FetchAndHop() return end
-
         local attempts = 0
-        local maxAttempts = 10 
         
-        while attempts < maxAttempts do
+        while attempts < 15 do -- Increased random tries
             attempts = attempts + 1
             local v = serverList[math.random(1, #serverList)]
             
@@ -299,7 +311,6 @@ local function ServerHop()
                         pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
                         StatusLbl.Text = "Joining: " .. ID:sub(1,5)
                         TeleportService:TeleportToPlaceInstance(PlaceID, ID, Player)
-                        
                         task.wait(4)
                         Hopping = false 
                         return
@@ -309,7 +320,8 @@ local function ServerHop()
             task.wait()
         end
         
-        task.wait(0.5)
+        -- If we reach here, this page is exhausted. Jump to the next cursor.
+        task.wait(0.2)
         FetchAndHop()
     end
     
