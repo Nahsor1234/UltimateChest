@@ -1,12 +1,368 @@
---[[
- .____                  ________ ___.    _____                           __                
- |    |    __ _______   \_____  \\_ |___/ ____\_ __  ______ ____ _____ _/  |_  ___________ 
- |    |   |  |  \__  \   /   |   \| __ \   __\  |  \/  ___// ___\\__  \\   __\/  _ \_  __ \
- |    |___|  |  // __ \_/    |    \ \_\ \  | |  |  /\___ \\  \___ / __ \|  | (  <_> )  | \/
- |_______ \____/(____  /\_______  /___  /__| |____//____  >\___  >____  /__|  \____/|__|   
-         \/          \/         \/    \/                \/     \/     \/                   
-          \_Welcome to LuaObfuscator.com   (Alpha 0.10.9) ~  Much Love, Ferib 
+-- // NAHSOR CHESTHUB V7.0 (ULTIMATE STABILITY & PERFORMANCE) //
 
-]]--
+-- // [1] LOCAL VARIABLE CACHING (Optimization 25) //
+local game, workspace = game, workspace
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+local VirtualUser = game:GetService("VirtualUser")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local v0=game:GetService("Players");local v1=game:GetService("Workspace");local v2=game:GetService("ReplicatedStorage");local v3=game:GetService("TeleportService");local v4=game:GetService("HttpService");local v5=game:GetService("RunService");local v6=game:GetService("TweenService");local v7=game:GetService("Lighting");local v8=game:GetService("VirtualUser");local v9=game:GetService("CoreGui");local v10=v0.LocalPlayer or v0.PlayerAdded:Wait() ;local v11=getgenv().UserConfig or {} ;local function v12(v141,v142) if (v11[v141]~=nil) then return v11[v141];end return v142;end local v13={TweenSpeed=v12("TweenSpeed",350),CollectionWait=v12("CollectionWait",0.35),AFKMode=v12("AFKMode",true),FastMode=v12("FastMode",true),StopOnRareItem=v12("StopOnRareItem",true),FarmChests=v12("FarmChests",true),HopDelay=5,FarmFruit=true,MinGroupRank=2,AdminGroupID=4372130,CircleRadius=600,IslandBlacklistRadius=600,MaxFarmDistance=4000};local v14={Chests=0,ZonesDone=0};local v15={};local v16={};local v17=true;local v18=false;local v19=os.time();local v20=0;local v21=nil;local v22=0;local v23={"God's Chalice","Fist of Darkness"};local v24=v13.AFKMode;local v25=game.PlaceId;local v26={};local v27="";local v28=os.date("!*t").hour;local function v29() pcall(function() if  not isfile("NotSameServers.json") then writefile("NotSameServers.json",v4:JSONEncode({v28}));else v26=v4:JSONDecode(readfile("NotSameServers.json"));if (tonumber(v26[1])~=v28) then v26={v28};writefile("NotSameServers.json",v4:JSONEncode(v26));end end end);end v29();pcall(function() v20=v10.Data.Beli.Value;end);pcall(function() v2.Remotes.CommF_:InvokeServer("SetTeam","Pirates");end);v10.Idled:Connect(function() v8:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame);task.wait(1);v8:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame);end);task.spawn(function() if v9:FindFirstChild("RobloxPromptGui") then v9.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(v200) if (v200.Name=="ErrorPrompt") then task.wait(2);v3:Teleport(game.PlaceId,v10);end end);end end);pcall(function() if v10:FindFirstChild("PlayerGui") then for v201,v202 in pairs(v10.PlayerGui:GetChildren()) do if (v202.Name=="ChestHub_Core") then v202:Destroy();end end end for v178,v179 in pairs(v9:GetChildren()) do if (v179.Name=="ChestHub_Core") then v179:Destroy();end end end);local v30=Instance.new("ScreenGui");v30.Name="ChestHub_Core";v30.IgnoreGuiInset=true;v30.Parent=v10:WaitForChild("PlayerGui");local v34=Instance.new("Frame");v34.Name="AFKOverlay";v34.Parent=v30;v34.Size=UDim2.new(1,0,1,0);v34.BackgroundColor3=Color3.fromRGB(0,0,0);v34.BackgroundTransparency=(v13.AFKMode and 0) or 1 ;v34.Visible=v13.AFKMode;v34.ZIndex=1;local v43=Instance.new("Frame");v43.Name="StatsFrame";v43.BackgroundColor3=Color3.fromRGB(15,15,15);v43.BorderSizePixel=0;v43.Position=UDim2.new(0.02,0,0.4,0);v43.Size=UDim2.new(0,160,0,0);v43.AutomaticSize=Enum.AutomaticSize.Y;v43.Active=true;v43.Draggable=true;v43.Parent=v30;v43.ZIndex=5;local v55=Instance.new("UIStroke");v55.Parent=v43;v55.Color=Color3.fromRGB(255,60,60);v55.Thickness=1;local v59=Instance.new("UICorner");v59.CornerRadius=UDim.new(0,6);v59.Parent=v43;local v62=Instance.new("UIListLayout");v62.Parent=v43;v62.SortOrder=Enum.SortOrder.LayoutOrder;v62.Padding=UDim.new(0,2);local v67=Instance.new("UIPadding");v67.Parent=v43;v67.PaddingTop=UDim.new(0,8);v67.PaddingLeft=UDim.new(0,8);v67.PaddingRight=UDim.new(0,8);v67.PaddingBottom=UDim.new(0,8);local function v73(v144,v145,v146,v147) local v148=Instance.new("TextLabel");v148.Parent=v43;v148.BackgroundTransparency=1;v148.Size=UDim2.new(1,0,0,14);v148.Font=v147 or Enum.Font.GothamBold ;v148.Text=v144;v148.TextColor3=v146 or Color3.fromRGB(255,255,255) ;v148.TextSize=11;v148.TextXAlignment=Enum.TextXAlignment.Left;v148.LayoutOrder=v145;v148.ZIndex=6;return v148;end local v74=v73("CHEST HUB V2",0,Color3.fromRGB(255,60,60),Enum.Font.GothamBlack);local v75=v73("Chests: 0",1,Color3.fromRGB(255,170,0));local v76=v73("Fruit: None",2,Color3.fromRGB(255,85,255));local v77=v73("Timer: 00:00:00",3,Color3.fromRGB(200,200,200));local v78=v73("Zones Done: 0",4,Color3.fromRGB(0,255,255));local v79=v73("Earned: $0",5,Color3.fromRGB(85,255,127));local v80=v73("Status: Active",6,Color3.fromRGB(255,255,255),Enum.Font.GothamBlack);local v81=Instance.new("Frame");v81.BackgroundTransparency=1;v81.Size=UDim2.new(1,0,0,4);v81.LayoutOrder=7;v81.Parent=v43;local v86=Instance.new("Frame");v86.BackgroundTransparency=1;v86.Size=UDim2.new(1,0,0,20);v86.LayoutOrder=8;v86.Parent=v43;v86.ZIndex=6;local v92=Instance.new("TextButton");v92.Parent=v86;v92.Text="ON";v92.BackgroundColor3=Color3.fromRGB(50,200,50);v92.TextColor3=Color3.fromRGB(255,255,255);v92.Size=UDim2.new(0.48,0,1,0);v92.Font=Enum.Font.GothamBlack;v92.TextSize=10;v92.ZIndex=6;Instance.new("UICorner",v92).CornerRadius=UDim.new(0,4);local v103=Instance.new("TextButton");v103.Parent=v86;v103.Text="HOP";v103.BackgroundColor3=Color3.fromRGB(45,120,255);v103.TextColor3=Color3.fromRGB(255,255,255);v103.Position=UDim2.new(0.52,0,0,0);v103.Size=UDim2.new(0.48,0,1,0);v103.Font=Enum.Font.GothamBlack;v103.TextSize=10;v103.ZIndex=6;Instance.new("UICorner",v103).CornerRadius=UDim.new(0,4);local v114=Instance.new("Frame");v114.BackgroundTransparency=1;v114.Size=UDim2.new(1,0,0,2);v114.LayoutOrder=9;v114.Parent=v43;local v119=Instance.new("Frame");v119.BackgroundTransparency=1;v119.Size=UDim2.new(1,0,0,20);v119.LayoutOrder=10;v119.Parent=v43;v119.ZIndex=6;local v125=Instance.new("TextButton");v125.Parent=v119;v125.Text=(v13.AFKMode and "AFK: ON") or "AFK: OFF" ;v125.BackgroundColor3=(v13.AFKMode and Color3.fromRGB(100,255,100)) or Color3.fromRGB(60,60,60) ;v125.TextColor3=(v13.AFKMode and Color3.fromRGB(0,0,0)) or Color3.fromRGB(255,255,255) ;v125.Size=UDim2.new(1,0,1,0);v125.Font=Enum.Font.GothamBlack;v125.TextSize=10;v125.ZIndex=6;Instance.new("UICorner",v125).CornerRadius=UDim.new(0,4);local function v135() v24= not v24;v125.Text=(v24 and "AFK: ON") or "AFK: OFF" ;v125.BackgroundColor3=(v24 and Color3.fromRGB(100,255,100)) or Color3.fromRGB(60,60,60) ;v125.TextColor3=(v24 and Color3.fromRGB(0,0,0)) or Color3.fromRGB(255,255,255) ;v34.Visible=v24;v34.BackgroundTransparency=(v24 and 0) or 1 ;end task.spawn(function() if v13.FastMode then task.wait(1);pcall(function() v7.GlobalShadows=false;v7.FogEnd=8999999488;for v220,v221 in pairs(v1:GetDescendants()) do if v221:IsA("BasePart") then v221.Material=Enum.Material.SmoothPlastic;v221.CastShadow=false;end if (v221:IsA("Texture") or v221:IsA("Decal")) then v221.Transparency=1;end end end);end end);local function v136() v80.Text="Smart Hopping...";task.wait(v13.HopDelay);v29();local function v166() local v180;if (v27=="") then v180=v4:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"   .. v25   .. "/servers/Public?sortOrder=Asc&limit=100" ));else v180=v4:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"   .. v25   .. "/servers/Public?sortOrder=Asc&limit=100&cursor="   .. v27 ));end if (v180.nextPageCursor and (v180.nextPageCursor~="null")) then v27=v180.nextPageCursor;end for v188,v189 in pairs(v180.data) do local v190=tostring(v189.id);if ((tonumber(v189.maxPlayers)>tonumber(v189.playing)) and (tonumber(v189.playing)>=2)) then local v222=true;for v225,v226 in pairs(v26) do if (v190==tostring(v226)) then v222=false;break;end end if v222 then v80.Text="Found: "   .. v189.playing   .. " Plrs" ;table.insert(v26,v190);pcall(function() writefile("NotSameServers.json",v4:JSONEncode(v26));end);v3:TeleportToPlaceInstance(v25,v190,v10);return;end end end v80.Text="Scanning Next Page...";task.wait(0.1);v166();end pcall(v166);end local function v137() for v182,v183 in pairs(v0:GetPlayers()) do if (v183~=v10) then local v206,v207=pcall(function() return v183:GetRankInGroup(v13.AdminGroupID);end);if (v206 and (v207>v13.MinGroupRank)) then v80.Text="ADMIN!";v80.TextColor3=Color3.fromRGB(255,50,50);v17=false;task.wait(0.5);v136();end end end end local function v138() if  not v13.StopOnRareItem then return false;end for v184,v185 in pairs(v23) do if (v10.Backpack:FindFirstChild(v185) or v10.Character:FindFirstChild(v185)) then v17=false;v80.Text="ITEM FOUND!";v80.TextColor3=Color3.fromRGB(255,50,50);v92.Text="PAUSED";return true;end end return false;end local function v139(v167) if  not v167 then return;end local v168=v10.Character;local v169=v167.Name:gsub(" Fruit","");v80.Text="Store: "   .. v169 ;if (v167.Parent==v10.Backpack) then v167.Parent=v168;task.wait(0.5);end local v171={[1]="StoreFruit",[2]=v167:GetAttribute("OriginalName") or v167.Name ,[3]=v167};pcall(function() v2.Remotes.CommF_:InvokeServer("StoreFruit",v171[2],v171[3]);end);if (v167.Parent==v168) then pcall(function() v2.Remotes.CommF_:InvokeServer("StoreFruit",v169,v167);end);end task.wait(0.5);v80.Text="Status: Active";end local function v140() if ( not v17 or v18) then return;end v137();if v138() then return;end local v172=v10.Character:FindFirstChild("HumanoidRootPart");if  not v172 then return;end if  not v21 then v21=v172.Position;end if v13.FarmFruit then for v211,v212 in pairs(v1:GetChildren()) do if (v212:IsA("Tool") and v212.Name:find("Fruit") and v212:FindFirstChild("Handle")) then local v229=v212.Name:gsub(" Fruit","");v80.Text="Sniping...";v76.Text="Fruit: "   .. v229 ;v172.CFrame=v212.Handle.CFrame;if v212.Handle:FindFirstChild("TouchInterest") then firetouchinterest(v172,v212.Handle,0);firetouchinterest(v172,v212.Handle,1);end task.wait(0.3);local v234=v10.Backpack:FindFirstChild(v212.Name) or v10.Character:FindFirstChild(v212.Name) ;if v234 then v139(v234);v76.Text="Stored: "   .. v229 ;end return;end end end local v173,v174=nil,math.huge;if v13.FarmChests then for v213,v214 in pairs(v1:GetDescendants()) do if ((v214.Name:find("Chest") or v214.Name:find("Box")) and v214:IsA("Part") and v214:FindFirstChild("TouchInterest")) then local v235=false;for v243,v244 in pairs(v16) do if ((v214.Position-v244).Magnitude<v13.IslandBlacklistRadius) then v235=true;break;end end local v236=(v214.Position-v21).Magnitude;if ((v236<v13.MaxFarmDistance) and  not v15[v214] and  not v235) then local v246=(v172.Position-v214.Position).Magnitude;if (v246<v174) then v173,v174=v214,v246;end end end end end if v173 then v22=0;local v193=math.floor((v172.Position-v173.Position).Magnitude);v80.Text="Travel: "   .. v193   .. "m" ;v18=true;local v195;if (math.abs(v172.Position.Y-v173.Position.Y )>800) then v172.CFrame=v173.CFrame;task.wait(0.5);else v195=v6:Create(v172,TweenInfo.new(v193/v13.TweenSpeed ,Enum.EasingStyle.Linear),{CFrame=v173.CFrame});v195:Play();while v195.PlaybackState==Enum.PlaybackState.Playing  do if  not v17 then v195:Cancel();v18=false;return;end if (v172 and v173) then local v247=math.floor((v172.Position-v173.Position).Magnitude);v80.Text="Travel: "   .. v247   .. "m" ;end task.wait();end end v18=false;v80.Text="Collecting...";for v215,v216 in pairs(v1:GetDescendants()) do if  not v17 then return;end if ((v216.Name:find("Chest") or v216.Name:find("Box")) and v216:IsA("Part") and ((v216.Position-v173.Position).Magnitude<v13.CircleRadius)) then if  not v15[v216] then v15[v216]=true;v172.CFrame=v216.CFrame;task.wait(v13.CollectionWait);v14.Chests=v14.Chests + 1 ;v75.Text="Chests: "   .. v14.Chests ;end end end table.insert(v16,v173.Position);v14.ZonesDone=v14.ZonesDone + 1 ;v78.Text="Zones Done: "   .. v14.ZonesDone ;else v22=v22 + 1 ;v80.Text="Search: "   .. v22   .. "/5" ;if (v22>=5) then v136();end end end v92.MouseButton1Click:Connect(function() v17= not v17;v92.Text=(v17 and "ON") or "OFF" ;v92.BackgroundColor3=(v17 and Color3.fromRGB(50,200,50)) or Color3.fromRGB(200,50,50) ;v80.Text=(v17 and "Status: Active") or "Status: Paused" ;if (v17 and v10.Character) then v21=v10.Character.HumanoidRootPart.Position;end end);v103.MouseButton1Click:Connect(v136);v125.MouseButton1Click:Connect(v135);v0.PlayerAdded:Connect(v137);task.spawn(function() while true do local v186=os.time() -v19 ;v77.Text=string.format("Timer: %02d:%02d:%02d",math.floor(v186/3600 ),math.floor((v186%3600)/60 ),v186%60 );if (v10.Data and v10.Data.Beli) then v79.Text="Earned: $"   .. (v10.Data.Beli.Value-v20) ;end v137();task.wait(1);end end);task.spawn(function() while true do if v17 then pcall(v140);end task.wait(0.5);end end);v5.Stepped:Connect(function() if (v17 and v10.Character) then for v218,v219 in pairs(v10.Character:GetChildren()) do if v219:IsA("BasePart") then v219.CanCollide=false;end end end end);
+local task_wait, task_spawn = task.wait, task.spawn
+local math_floor, math_huge = math.floor, math.huge
+local os_time, os_date = os.time, os.date
+local string_find = string.find
+local Vector3_new, Vector2_new = Vector3.new, Vector2.new
+local CFrame_new = CFrame.new
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+-- // [2] CONFIGURATION //
+local Config = {
+    WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
+    TweenSpeed = 350,       
+    CollectionWait = 0.5, 
+    AFKMode = true,
+    FastMode = true,
+    StopOnRareItem = true,
+    AdminHop = true, 
+    FarmChests = true,
+    FarmFruit = true,
+    HopDelay = 5,
+    MaxFarmDistance = 4000,
+    MaxFarmDistanceSq = 4000^2, -- Optimization 10: Pre-calculate squared distance
+    CacheRefreshRate = 5,       -- Performance 6: Refresh cache every 5s
+    StuckThreshold = 15,        -- Stability 12: Stuck detection time
+    MinPlayers = 3              -- Stability 11: Auto-hop if server dying
+}
+
+-- Loader Sync (Optimization 24)
+pcall(function()
+    if getgenv().UserConfig then
+        for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
+        Config.MaxFarmDistanceSq = Config.MaxFarmDistance^2 -- Recalculate if user changed distance
+    end
+end)
+
+-- // [3] VARIABLES & CACHING //
+local Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
+local ChestCache = {}       -- Performance 6: Chest Cache
+local VisitedChests = {} 
+local CollectedPositions = {} 
+local Farming, IsMoving, Hopping = true, false, false
+local LastMoveTime = os_time()
+local LastPos = Vector3_new()
+local LastCacheRefresh = 0
+local LastDataSave = os_time() -- Stability 13
+local RareItems = {"God's Chalice", "Fist of Darkness"}
+
+-- // [4] UTILITY FUNCTIONS //
+
+-- Anti-AFK (Critical 1)
+Player.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2_new())
+end)
+
+-- Robust File System (Stability 15)
+local function SafeFileAction(name, data)
+    local success, result = pcall(function()
+        if data then 
+            writefile(name, HttpService:JSONEncode(data))
+            return true
+        else 
+            return HttpService:JSONDecode(readfile(name)) 
+        end
+    end)
+    return success and result
+end
+
+-- Server Health & Hop (Stability 11)
+local function ServerHop()
+    if Hopping then return end
+    Hopping = true
+    
+    -- Save blacklist logic
+    local AllIDs = SafeFileAction("NotSameServers.json") or {os_date("!*t").hour}
+    if not table.find(AllIDs, game.JobId) then
+        table.insert(AllIDs, game.JobId)
+    end
+    SafeFileAction("NotSameServers.json", AllIDs)
+
+    -- Optimization 8: Combined pcall
+    local function Fetch()
+        local url = 'https://games.roblox.com/v1/games/'..game.PlaceId..'/servers/Public?sortOrder=Asc&limit=100'
+        local s, res = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+        
+        if s and res and res.data then
+            for _, v in pairs(res.data) do
+                if v.playing < v.maxPlayers and v.id ~= game.JobId and not table.find(AllIDs, v.id) then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, Player)
+                    return
+                end
+            end
+        end
+        task_wait(1) Fetch()
+    end
+    Fetch()
+end
+
+-- Webhook (Updated Logic)
+local function SendWebhook(item)
+    if Config.WebhookURL == "" then return end
+    task_spawn(function()
+        local currentMoney = 0
+        pcall(function() currentMoney = Player.Data.Beli.Value end)
+        local earned = currentMoney - Stats.StartMoney
+        local duration = os_time() - Stats.StartTime
+        
+        local embed = {
+            ["title"] = item and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT",
+            ["description"] = string_format(
+                "**Chests:** %d\n**Earned:** $%d\n**Time:** %02d:%02d:%02d\n**Item:** %s",
+                Stats.Chests, earned, math_floor(duration/3600), math_floor((duration%3600)/60), duration%60, item or "None"
+            ),
+            ["color"] = item and 16711680 or 65280
+        }
+        
+        request({
+            Url = Config.WebhookURL,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode({embeds = {embed}})
+        })
+    end)
+end
+
+-- // [5] UI SYSTEM //
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "NahsorChestHub"
+pcall(function() ScreenGui.Parent = PlayerGui end)
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
+MainFrame.Size = UDim2.new(0, 160, 0, 0)
+MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+
+local UIList = Instance.new("UIListLayout", MainFrame)
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+UIList.Padding = UDim.new(0, 2)
+Instance.new("UIPadding", MainFrame).PaddingLeft = UDim.new(0, 10)
+
+local function Label(text, color, order)
+    local l = Instance.new("TextLabel", MainFrame)
+    l.Text = text
+    l.TextColor3 = color or Color3.new(1,1,1)
+    l.BackgroundTransparency = 1
+    l.Size = UDim2.new(1,0,0,15)
+    l.Font = Enum.Font.GothamBold
+    l.TextSize = 12
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.LayoutOrder = order
+    return l
+end
+
+local LblTitle = Label("NAHSOR CHESTHUB V7", Color3.fromRGB(255, 60, 60), 0)
+local LblChests = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
+local LblEarned = Label("Earned: $0", Color3.fromRGB(85, 255, 127), 2)
+local LblStatus = Label("Status: Active", Color3.new(1,1,1), 3)
+
+local BtnToggle = Instance.new("TextButton", MainFrame)
+BtnToggle.Text = "TOGGLE"
+BtnToggle.Size = UDim2.new(1,-20,0,20)
+BtnToggle.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+BtnToggle.LayoutOrder = 4
+
+-- // [6] CORE LOGIC & CACHING //
+
+-- Performance 6 & 7: Smart Caching
+local function UpdateCache()
+    if os_time() - LastCacheRefresh < Config.CacheRefreshRate then return end
+    LastCacheRefresh = os_time()
+    
+    table.clear(ChestCache)
+    -- Performance 7: Cache GetDescendants results
+    for _, v in pairs(workspace:GetDescendants()) do
+        if (string_find(v.Name, "Chest") or string_find(v.Name, "Box")) and v:IsA("Part") then
+            table.insert(ChestCache, v)
+        end
+    end
+end
+
+-- Stability 12: Anti-Stuck Logic
+local function CheckStuck(root)
+    if (root.Position - LastPos).Magnitude < 2 then
+        if os_time() - LastMoveTime > Config.StuckThreshold then
+            LblStatus.Text = "Stuck! Hopping..."
+            ServerHop()
+        end
+    else
+        LastMoveTime = os_time()
+        LastPos = root.Position
+    end
+end
+
+-- Critical 2: Death Handler
+Player.CharacterAdded:Connect(function(char)
+    Farming = false
+    task_wait(1)
+    Farming = true
+end)
+
+-- Main Farm Function
+local function Farm()
+    -- Critical 3: Global Error Wrapper
+    local success, err = pcall(function()
+        if not Farming or Hopping then return end
+        
+        -- Optimization 25: Local variable caching
+        local char = Player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        
+        -- Stability 12: Stuck Check
+        CheckStuck(root)
+        
+        -- Optimization 21: Timer Throttling
+        if os_time() % 2 == 0 then UpdateCache() end
+        
+        -- Rare Item Check
+        if Config.StopOnRareItem then
+            for _, item in pairs(RareItems) do
+                if Player.Backpack:FindFirstChild(item) or char:FindFirstChild(item) then
+                    Farming = false
+                    SendWebhook(item)
+                    return
+                end
+            end
+        end
+
+        -- Find Nearest Chest
+        local target, minDistSq = nil, math_huge
+        local myPos = root.Position
+        
+        for _, v in pairs(ChestCache) do
+            -- Performance 9: Cache Validation
+            if v and v.Parent then
+                local distSq = (v.Position - myPos).Magnitude^2 -- Performance 10
+                if distSq < Config.MaxFarmDistanceSq and not VisitedChests[v] then
+                     -- Check for collected proximity
+                    local isDup = false
+                    for _, pos in pairs(CollectedPositions) do
+                        if (v.Position - pos).Magnitude^2 < 16 then isDup = true break end
+                    end
+                    
+                    if not isDup and distSq < minDistSq then
+                        target = v
+                        minDistSq = distSq
+                    end
+                end
+            end
+        end
+
+        -- Movement Logic
+        if target then
+            IsMoving = true
+            local dist = math.sqrt(minDistSq)
+            LblStatus.Text = "Travel: "..math_floor(dist).."m"
+            
+            local tween = TweenService:Create(root, TweenInfo.new(dist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+            tween:Play()
+            
+            -- Missing Logic 18: Tween Completion Handler
+            local completed = false
+            local conn
+            conn = tween.Completed:Connect(function()
+                completed = true
+                conn:Disconnect()
+            end)
+            
+            -- Loop Continuation Wait
+            while not completed and Farming and target.Parent do
+                task_wait(0.1) -- Critical 5: FPS Limiter
+            end
+            
+            if not Farming then tween:Cancel() return end
+            
+            -- Missing Logic 16: Collection
+            if target.Parent then
+                root.CFrame = target.CFrame
+                firetouchinterest(root, target, 0)
+                firetouchinterest(root, target, 1)
+                
+                -- Missing Logic 17: Stats Updating
+                local oldMoney = Player.Data.Beli.Value
+                task_wait(Config.CollectionWait)
+                if Player.Data.Beli.Value > oldMoney then
+                    Stats.Chests = Stats.Chests + 1
+                    VisitedChests[target] = true
+                    table.insert(CollectedPositions, target.Position)
+                    
+                    LblChests.Text = "Chests: "..Stats.Chests
+                    LblEarned.Text = "Earned: $"..(Player.Data.Beli.Value - Stats.StartMoney)
+                end
+            end
+            IsMoving = false
+        else
+            -- Missing Logic 20: Loop Continuation (Search Mode)
+            LblStatus.Text = "Scanning..."
+            if os_time() - LastMoveTime > 10 then ServerHop() end
+        end
+    end)
+    
+    if not success then warn("Farm Error:", err) task_wait(1) end
+end
+
+-- // [7] INITIALIZATION //
+
+-- Missing Logic 19: Button Events
+BtnToggle.MouseButton1Click:Connect(function()
+    Farming = not Farming
+    BtnToggle.BackgroundColor3 = Farming and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    LblStatus.Text = Farming and "Active" or "Stopped"
+end)
+
+-- Critical 4: Memory Cleanup (Hourly)
+task_spawn(function()
+    while task_wait(3600) do
+        VisitedChests = {}
+        CollectedPositions = {}
+    end
+end)
+
+-- Stability 11: Server Health Check
+task_spawn(function()
+    while task_wait(10) do
+        if #Players:GetPlayers() < Config.MinPlayers then
+            LblStatus.Text = "Low Players! Hopping..."
+            ServerHop()
+        end
+    end
+end)
+
+-- Initialize Stats
+pcall(function() Stats.StartMoney = Player.Data.Beli.Value end)
+
+-- Start Main Loop
+task_spawn(function()
+    while true do
+        if Farming then Farm() end
+        task_wait(0.1) -- Critical 5: Main Loop FPS Limiter
+    end
+end)
+
+-- Optimization 7: Fast Mode
+if Config.FastMode then
+    pcall(function()
+        Lighting.GlobalShadows = false
+        for _,v in pairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic end
+        end
+    end)
+end
