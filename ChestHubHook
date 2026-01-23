@@ -1,4 +1,4 @@
--- // NAHSOR CHESTHUB V12.3 (FRUIT MODE SWITCH) //
+-- // NAHSOR CHESTHUB V12.6 (FRUIT NAMES IN WEBHOOK) //
 
 -- // [1] SERVICES //
 local game = game
@@ -37,7 +37,7 @@ local Config = {
     MaxFarmDistance = 4000
 }
 
--- Loader Sync
+-- [LOADER SYNC]
 pcall(function()
     if getgenv().UserConfig then
         for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
@@ -49,7 +49,7 @@ local Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
 local ChestCache = {}
 local VisitedChests = {} 
 local CollectedPositions = {}
-local CollectedFruits = {} 
+local CollectedFruits = {} -- Memory for fruit UI
 local Farming, IsMoving, Hopping = true, false, false
 local LastMoveTime = os_time()
 local LastPos = Vector3.new(0,0,0)
@@ -223,7 +223,7 @@ task_spawn(function()
     end)
 end)
 
--- Webhook
+-- Webhook (UPDATED)
 local function SendWebhook(item)
     if Config.WebhookURL == "" or Config.WebhookURL:find("discord") == nil then return end
     task_spawn(function()
@@ -238,22 +238,26 @@ local function SendWebhook(item)
         local duration = os_time() - Stats.StartTime
         local timeString = string.format("%02d:%02d:%02d", math_floor(duration/3600), math_floor((duration%3600)/60), duration%60)
         
+        -- Formatting the fruit string
+        local fruitText = (item and item ~= "") and item or "None"
+
         local desc = "**Player:** " .. Player.Name .. "\n"
         desc = desc .. "**Time:** " .. timeString .. "\n"
         desc = desc .. "**Chests:** " .. tostring(Stats.Chests) .. "\n"
         desc = desc .. "**Money:** $" .. tostring(earned) .. "\n"
         desc = desc .. "**Total.Money:** $" .. tostring(currentBeli) .. "\n"
-        desc = desc .. "**Fruit:** " .. (item or "None")
+        desc = desc .. "**Fruit:** " .. fruitText
 
-        local title = item and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT"
-        local color = item and 16711680 or 65280
+        -- If 'item' exists (fruits found), Title is RARE ITEM FOUND
+        local title = (item and item ~= "") and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT"
+        local color = (item and item ~= "") and 16711680 or 65280
         
         local data = {
             ["embeds"] = {{
                 ["title"] = title,
                 ["description"] = desc,
                 ["color"] = color,
-                ["footer"] = { ["text"] = "Nahsor ChestHub V12.3" }
+                ["footer"] = { ["text"] = "Nahsor ChestHub V12.6" }
             }}
         }
         
@@ -274,13 +278,6 @@ ScreenGui.Name = "ChestHub_Core"
 ScreenGui.IgnoreGuiInset = true 
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling 
 pcall(function() if Player.PlayerGui:FindFirstChild("ChestHub_Core") then Player.PlayerGui.ChestHub_Core:Destroy() end ScreenGui.Parent = Player.PlayerGui end)
-
-local BlurFrame = Instance.new("Frame", ScreenGui)
-BlurFrame.Name = "AFKOverlay"
-BlurFrame.Size = UDim2.new(1, 0, 1, 0)
-BlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-BlurFrame.Visible = Config.AFKMode
-BlurFrame.ZIndex = 1
 
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
@@ -370,7 +367,14 @@ AFKBtn.LayoutOrder = 8
 AFKBtn.ZIndex = 12
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
 
--- Fruit Logic
+local BlurFrame = Instance.new("Frame", ScreenGui)
+BlurFrame.Name = "AFKOverlay"
+BlurFrame.Size = UDim2.new(1, 0, 1, 0)
+BlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BlurFrame.Visible = Config.AFKMode
+BlurFrame.ZIndex = 1
+
+-- Fruit Store
 local function StoreFruit(fruit)
     if not fruit then return end
     if fruit:FindFirstChild("Handle") then
@@ -413,7 +417,7 @@ local function CheckStuck(root)
     end
 end
 
--- MAIN FARM LOOP (DUAL MODE)
+-- [MAIN FARM LOOP] 
 local function MainFarm()
     if not Farming or Hopping then return end
     
@@ -421,12 +425,12 @@ local function MainFarm()
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     
-    -- [MODE A] CHEST FARMING (Standard)
+    -- [MODE A] CHEST FARMING
     if Config.FarmChests then
         CheckStuck(root)
         UpdateCache()
         
-        -- Passive Fruit Sniping (Standard behavior)
+        -- Passive Fruit Sniping
         if Config.FarmFruit then
             for _, v in pairs(Workspace:GetChildren()) do
                 if v:IsA("Tool") and string.find(v.Name, "Fruit") then
@@ -482,12 +486,18 @@ local function MainFarm()
             IsMoving = false
         else
             StatusLbl.Text = "Done! Hopping in 3s..."
-            if Stats.Chests > 0 then SendWebhook(nil) end
+            
+            -- [FIXED] Send Webhook with fruit names if any exist
+            local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
+            if Stats.Chests > 0 or fruits then 
+                SendWebhook(fruits) 
+            end
+            
             task_wait(3) 
             ServerHop()
         end
 
-    -- [MODE B] FRUIT ONLY (FarmChests = False)
+    -- [MODE B] FRUIT ONLY
     elseif Config.FarmFruit then
         StatusLbl.Text = "Fruit Mode: Scanning..."
         local foundAny = false
@@ -496,7 +506,6 @@ local function MainFarm()
             if v:IsA("Tool") and string.find(v.Name, "Fruit") then
                 foundAny = true
                 StatusLbl.Text = "Collecting: " .. v.Name
-                -- Teleport to fruit
                 root.CFrame = v.Handle.CFrame
                 task_wait(0.3)
                 StoreFruit(v)
@@ -504,10 +513,12 @@ local function MainFarm()
             end
         end
         
-        -- Hop Logic: Whether found or not, we hop now.
         if foundAny then
              StatusLbl.Text = "Fruits Collected. Hopping..."
-             if Config.WebhookURL ~= "" then SendWebhook("Collected Fruits") end
+             -- [FIXED] Send list of names: "Rocket, Spin"
+             if Config.WebhookURL ~= "" then 
+                 SendWebhook(table.concat(CollectedFruits, ", ")) 
+             end
         else
              StatusLbl.Text = "No Fruit Found. Hopping..."
         end
@@ -531,7 +542,7 @@ HopBtn.MouseButton1Click:Connect(function()
 end)
 
 AFKBtn.MouseButton1Click:Connect(function()
-    IsAFK = not IsAFK
+IsAFK = not IsAFK
     AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
     AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
     BlurFrame.Visible = IsAFK
@@ -539,6 +550,7 @@ end)
 
 pcall(function() Stats.StartMoney = Player.Data.Beli.Value end)
 
+-- MAIN LOOP
 task_spawn(function()
     StatusLbl.Text = "Active"
     while true do
@@ -550,6 +562,7 @@ task_spawn(function()
     end
 end)
 
+-- TIMER LOOP
 task_spawn(function()
     while true do
         local s = os_time() - Stats.StartTime
