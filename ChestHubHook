@@ -331,7 +331,7 @@ local function Label(text, color, order)
     return l
 end
 
-TitleLbl = Label("NAHSOR HUB V12.1", Color3.fromRGB(255, 60, 60), 0)
+TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
 ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
 FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
 TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
