@@ -1,4 +1,4 @@
--- // NAHSOR CHESTHUB V12.2 (FIXED UI & LOADER LOGIC) //
+-- // NAHSOR CHESTHUB V12.3 (FRUIT MODE SWITCH) //
 
 -- // [1] SERVICES //
 local game = game
@@ -49,7 +49,7 @@ local Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
 local ChestCache = {}
 local VisitedChests = {} 
 local CollectedPositions = {}
-local CollectedFruits = {} -- [FIX 1] Added memory for fruits
+local CollectedFruits = {} 
 local Farming, IsMoving, Hopping = true, false, false
 local LastMoveTime = os_time()
 local LastPos = Vector3.new(0,0,0)
@@ -175,7 +175,6 @@ local function ServerHop()
                                 TeleportService:TeleportToPlaceInstance(PlaceID, ID, Player)
                                 task_wait(5)
                                 StatusLbl.Text = "TP Failed! Retrying..."
-                                -- If we reached here, TP failed. Loop continues.
                             end
                         end
                     end
@@ -203,8 +202,8 @@ end
 TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
     if player == Player then
         StatusLbl.Text = "TP Fail! New Hop..."
-        Hopping = false -- Reset flag
-        ServerHop()     -- Force new hop immediately
+        Hopping = false 
+        ServerHop()     
     end
 end)
 
@@ -254,7 +253,7 @@ local function SendWebhook(item)
                 ["title"] = title,
                 ["description"] = desc,
                 ["color"] = color,
-                ["footer"] = { ["text"] = "Nahsor ChestHub V12.2" }
+                ["footer"] = { ["text"] = "Nahsor ChestHub V12.3" }
             }}
         }
         
@@ -371,7 +370,7 @@ AFKBtn.LayoutOrder = 8
 AFKBtn.ZIndex = 12
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
 
--- Fruit Logic (MOVED & FIXED)
+-- Fruit Logic
 local function StoreFruit(fruit)
     if not fruit then return end
     if fruit:FindFirstChild("Handle") then
@@ -381,7 +380,6 @@ local function StoreFruit(fruit)
         task_wait(0.5)
     end
     
-    -- [FIX 1] UI Memory System
     table.insert(CollectedFruits, fruit:GetAttribute("OriginalName") or fruit.Name)
     FruitLbl.Text = "Fruit: " .. table.concat(CollectedFruits, ", ")
     
@@ -415,78 +413,106 @@ local function CheckStuck(root)
     end
 end
 
--- MAIN CHEST FUNCTION
-local function FarmChests()
+-- MAIN FARM LOOP (DUAL MODE)
+local function MainFarm()
     if not Farming or Hopping then return end
     
-    -- [FIX 2] CHECK CONFIG: If FarmChests is False, we STOP here.
-    if not Config.FarmChests then 
-        StatusLbl.Text = "Chests Disabled"
-        return 
-    end
-
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     
-    CheckStuck(root)
-    UpdateCache()
-    
-    local target, minDist = nil, math_huge
-    for _, v in pairs(ChestCache) do
-        if v and v.Parent then
-            local dist = (v.Position - root.Position).Magnitude
-            if dist < Config.MaxFarmDistance and not VisitedChests[v] then
-                 local isDup = false
-                 for _, pos in pairs(CollectedPositions) do
-                     if (v.Position - pos).Magnitude < 4 then isDup = true break end
-                 end
-                 if not isDup and dist < minDist then
-                     target = v
-                     minDist = dist
-                 end
+    -- [MODE A] CHEST FARMING (Standard)
+    if Config.FarmChests then
+        CheckStuck(root)
+        UpdateCache()
+        
+        -- Passive Fruit Sniping (Standard behavior)
+        if Config.FarmFruit then
+            for _, v in pairs(Workspace:GetChildren()) do
+                if v:IsA("Tool") and string.find(v.Name, "Fruit") then
+                    StatusLbl.Text = "Sniping Fruit: " .. v.Name
+                    StoreFruit(v)
+                end
             end
         end
-    end
-    
-    if target then
-        IsMoving = true
-        StatusLbl.Text = "Traveling: " .. math_floor(minDist) .. "m"
         
-        local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
-        tween:Play()
-        
-        while tween.PlaybackState == Enum.PlaybackState.Playing do
-            if not Farming then tween:Cancel() return end
-            task_wait(0.1)
+        local target, minDist = nil, math_huge
+        for _, v in pairs(ChestCache) do
+            if v and v.Parent then
+                local dist = (v.Position - root.Position).Magnitude
+                if dist < Config.MaxFarmDistance and not VisitedChests[v] then
+                     local isDup = false
+                     for _, pos in pairs(CollectedPositions) do
+                         if (v.Position - pos).Magnitude < 4 then isDup = true break end
+                     end
+                     if not isDup and dist < minDist then
+                         target = v
+                         minDist = dist
+                     end
+                end
+            end
         end
         
-        if target.Parent then
-            StatusLbl.Text = "Collecting..."
-            root.CFrame = target.CFrame
-            firetouchinterest(root, target, 0)
-            firetouchinterest(root, target, 1)
-            
-            VisitedChests[target] = true
-            table.insert(CollectedPositions, target.Position)
-            Stats.Chests = Stats.Chests + 1
-            ChestsLbl.Text = "Chests: "..Stats.Chests
-            
-            task_spawn(function()
-                 task_wait(0.5)
-                 if Player.Data and Player.Data.Beli then
-                     EarnedLbl.Text = "Money: $"..(Player.Data.Beli.Value - Stats.StartMoney)
-                 end
-            end)
-            task_wait(Config.CollectionWait)
+        if target then
+            IsMoving = true
+            StatusLbl.Text = "Traveling: " .. math_floor(minDist) .. "m"
+            local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+            tween:Play()
+            while tween.PlaybackState == Enum.PlaybackState.Playing do
+                if not Farming then tween:Cancel() return end
+                task_wait(0.1)
+            end
+            if target.Parent then
+                StatusLbl.Text = "Collecting..."
+                root.CFrame = target.CFrame
+                firetouchinterest(root, target, 0)
+                firetouchinterest(root, target, 1)
+                VisitedChests[target] = true
+                table.insert(CollectedPositions, target.Position)
+                Stats.Chests = Stats.Chests + 1
+                ChestsLbl.Text = "Chests: "..Stats.Chests
+                task_spawn(function()
+                     task_wait(0.5)
+                     if Player.Data and Player.Data.Beli then
+                         EarnedLbl.Text = "Money: $"..(Player.Data.Beli.Value - Stats.StartMoney)
+                     end
+                end)
+                task_wait(Config.CollectionWait)
+            end
+            IsMoving = false
+        else
+            StatusLbl.Text = "Done! Hopping in 3s..."
+            if Stats.Chests > 0 then SendWebhook(nil) end
+            task_wait(3) 
+            ServerHop()
         end
-        IsMoving = false
-    else
-        StatusLbl.Text = "Done! Hopping in 3s..."
-        if Stats.Chests > 0 then
-            SendWebhook(nil)
+
+    -- [MODE B] FRUIT ONLY (FarmChests = False)
+    elseif Config.FarmFruit then
+        StatusLbl.Text = "Fruit Mode: Scanning..."
+        local foundAny = false
+        
+        for _, v in pairs(Workspace:GetChildren()) do
+            if v:IsA("Tool") and string.find(v.Name, "Fruit") then
+                foundAny = true
+                StatusLbl.Text = "Collecting: " .. v.Name
+                -- Teleport to fruit
+                root.CFrame = v.Handle.CFrame
+                task_wait(0.3)
+                StoreFruit(v)
+                task_wait(0.5)
+            end
         end
-        task_wait(3) 
+        
+        -- Hop Logic: Whether found or not, we hop now.
+        if foundAny then
+             StatusLbl.Text = "Fruits Collected. Hopping..."
+             if Config.WebhookURL ~= "" then SendWebhook("Collected Fruits") end
+        else
+             StatusLbl.Text = "No Fruit Found. Hopping..."
+        end
+        
+        task_wait(2)
         ServerHop()
     end
 end
@@ -513,37 +539,9 @@ end)
 
 pcall(function() Stats.StartMoney = Player.Data.Beli.Value end)
 
--- TASK A: MAIN CHEST LOOP
 task_spawn(function()
     StatusLbl.Text = "Active"
     while true do
         if Farming then 
-            local s, e = pcall(FarmChests) 
-            if not s then warn(e) end
-        end
-        task_wait(0.1)
-    end
-end)
-
--- TASK B: SEPARATE FRUIT LOOP (Runs Independently) [FIX 2]
-task_spawn(function()
-    while true do
-        if Config.FarmFruit then
-            for _, v in pairs(Workspace:GetChildren()) do
-                if v:IsA("Tool") and string.find(v.Name, "Fruit") then
-                    StatusLbl.Text = "Sniping Fruit: " .. v.Name
-                    StoreFruit(v)
-                end
-            end
-        end
-        task_wait(1) -- Checks for fruit every second
-    end
-end)
-
-task_spawn(function()
-    while true do
-        local s = os_time() - Stats.StartTime
-        TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor(s/3600), math_floor((s%3600)/60), s%60)
-        task_wait(1)
-    end
-end)
+            local s, e = pcall(MainFarm) 
+            if no
