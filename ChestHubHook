@@ -1,4 +1,4 @@
--- // NAHSOR CHESTHUB V12.1 (BULLETPROOF HOP) //
+-- // NAHSOR CHESTHUB V12.2 (FIXED UI & LOADER LOGIC) //
 
 -- // [1] SERVICES //
 local game = game
@@ -48,7 +48,8 @@ end)
 local Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
 local ChestCache = {}
 local VisitedChests = {} 
-local CollectedPositions = {} 
+local CollectedPositions = {}
+local CollectedFruits = {} -- [FIX 1] Added memory for fruits
 local Farming, IsMoving, Hopping = true, false, false
 local LastMoveTime = os_time()
 local LastPos = Vector3.new(0,0,0)
@@ -253,7 +254,7 @@ local function SendWebhook(item)
                 ["title"] = title,
                 ["description"] = desc,
                 ["color"] = color,
-                ["footer"] = { ["text"] = "Nahsor ChestHub V12.1" }
+                ["footer"] = { ["text"] = "Nahsor ChestHub V12.2" }
             }}
         }
         
@@ -266,19 +267,6 @@ local function SendWebhook(item)
             })
         end)
     end)
-end
-
--- Fruit Logic
-local function StoreFruit(fruit)
-    if not fruit then return end
-    if fruit:FindFirstChild("Handle") then
-        Player.Character.HumanoidRootPart.CFrame = fruit.Handle.CFrame
-        firetouchinterest(Player.Character.HumanoidRootPart, fruit.Handle, 0)
-        firetouchinterest(Player.Character.HumanoidRootPart, fruit.Handle, 1)
-        task_wait(0.5)
-    end
-    local args = { [1] = "StoreFruit", [2] = fruit:GetAttribute("OriginalName") or fruit.Name, [3] = fruit }
-    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args)) end)
 end
 
 -- // [6] UI SETUP //
@@ -383,6 +371,24 @@ AFKBtn.LayoutOrder = 8
 AFKBtn.ZIndex = 12
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
 
+-- Fruit Logic (MOVED & FIXED)
+local function StoreFruit(fruit)
+    if not fruit then return end
+    if fruit:FindFirstChild("Handle") then
+        Player.Character.HumanoidRootPart.CFrame = fruit.Handle.CFrame
+        firetouchinterest(Player.Character.HumanoidRootPart, fruit.Handle, 0)
+        firetouchinterest(Player.Character.HumanoidRootPart, fruit.Handle, 1)
+        task_wait(0.5)
+    end
+    
+    -- [FIX 1] UI Memory System
+    table.insert(CollectedFruits, fruit:GetAttribute("OriginalName") or fruit.Name)
+    FruitLbl.Text = "Fruit: " .. table.concat(CollectedFruits, ", ")
+    
+    local args = { [1] = "StoreFruit", [2] = fruit:GetAttribute("OriginalName") or fruit.Name, [3] = fruit }
+    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args)) end)
+end
+
 -- // [7] LOGIC //
 
 local function UpdateCache()
@@ -409,24 +415,22 @@ local function CheckStuck(root)
     end
 end
 
-local function Farm()
+-- MAIN CHEST FUNCTION
+local function FarmChests()
     if not Farming or Hopping then return end
     
+    -- [FIX 2] CHECK CONFIG: If FarmChests is False, we STOP here.
+    if not Config.FarmChests then 
+        StatusLbl.Text = "Chests Disabled"
+        return 
+    end
+
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     
     CheckStuck(root)
     UpdateCache()
-    
-    if Config.FarmFruit then
-        for _, v in pairs(Workspace:GetChildren()) do
-            if v:IsA("Tool") and string.find(v.Name, "Fruit") then
-                StatusLbl.Text = "Sniping Fruit: " .. v.Name
-                StoreFruit(v)
-            end
-        end
-    end
     
     local target, minDist = nil, math_huge
     for _, v in pairs(ChestCache) do
@@ -509,14 +513,30 @@ end)
 
 pcall(function() Stats.StartMoney = Player.Data.Beli.Value end)
 
+-- TASK A: MAIN CHEST LOOP
 task_spawn(function()
     StatusLbl.Text = "Active"
     while true do
         if Farming then 
-            local s, e = pcall(Farm) 
+            local s, e = pcall(FarmChests) 
             if not s then warn(e) end
         end
         task_wait(0.1)
+    end
+end)
+
+-- TASK B: SEPARATE FRUIT LOOP (Runs Independently) [FIX 2]
+task_spawn(function()
+    while true do
+        if Config.FarmFruit then
+            for _, v in pairs(Workspace:GetChildren()) do
+                if v:IsA("Tool") and string.find(v.Name, "Fruit") then
+                    StatusLbl.Text = "Sniping Fruit: " .. v.Name
+                    StoreFruit(v)
+                end
+            end
+        end
+        task_wait(1) -- Checks for fruit every second
     end
 end)
 
