@@ -542,3 +542,31 @@ HopBtn.MouseButton1Click:Connect(function()
 end)
 
 AFKBtn.MouseButton1Click:Connect(function()
+IsAFK = not IsAFK
+    AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
+    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
+    BlurFrame.Visible = IsAFK
+end)
+
+pcall(function() Stats.StartMoney = Player.Data.Beli.Value end)
+
+-- MAIN LOOP
+task_spawn(function()
+    StatusLbl.Text = "Active"
+    while true do
+        if Farming then 
+            local s, e = pcall(MainFarm) 
+            if not s then warn(e) end
+        end
+        task_wait(0.1)
+    end
+end)
+
+-- TIMER LOOP
+task_spawn(function()
+    while true do
+        local s = os_time() - Stats.StartTime
+        TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor(s/3600), math_floor((s%3600)/60), s%60)
+        task_wait(1)
+    end
+end)
