@@ -544,4 +544,16 @@ task_spawn(function()
     while true do
         if Farming then 
             local s, e = pcall(MainFarm) 
-            if no
+            if not s then warn(e) end
+        end
+        task_wait(0.1)
+    end
+end)
+
+task_spawn(function()
+    while true do
+        local s = os_time() - Stats.StartTime
+        TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor(s/3600), math_floor((s%3600)/60), s%60)
+        task_wait(1)
+    end
+end)
