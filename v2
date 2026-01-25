@@ -1,4 +1,4 @@
--- // NAHSOR CHESTHUB V12.7 FIXED //
+-- // NAHSOR CHESTHUB V12.7 FINAL //
 
 -- // [1] SERVICES //
 local game = game
@@ -93,47 +93,54 @@ local function MakeDraggable(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- [CHANGE 2: SAFE FAST MODE]
--- Fixed: Only removes lighting effects, does NOT destroy parts (prevents UI/White Screen errors)
+-- [MODIFICATION 1: SAFE FAST MODE]
+-- Removed "CleanObject" function that was deleting UI.
+-- This version only disables Lighting effects and Water physics.
 local function ApplyFastMode()
     if not Config.FastMode then return end
-    
-    -- Disable Shadows/Lighting only
-    Lighting.GlobalShadows = false
-    Lighting.FogEnd = 9e9
-    Lighting.Brightness = 0
-    
-    for _, v in pairs(Lighting:GetChildren()) do
-        if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("Atmosphere") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
-            v.Enabled = false
+    pcall(function()
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        Lighting.Brightness = 2
+        
+        -- Only disable effects, do not destroy parts
+        for _, v in pairs(Lighting:GetChildren()) do
+            if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("Atmosphere") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
+                v.Enabled = false
+            end
         end
-    end
-    
-    -- Optimize Terrain Water (Safe)
-    workspace.Terrain.WaterWaveSize = 0
-    workspace.Terrain.WaterWaveSpeed = 0
-    workspace.Terrain.WaterReflectance = 0
+        
+        -- Safe Terrain optimization
+        workspace.Terrain.WaterWaveSize = 0
+        workspace.Terrain.WaterWaveSpeed = 0
+        workspace.Terrain.WaterReflectance = 0
+    end)
 end
 task_spawn(ApplyFastMode)
 
--- [CHANGE 1 & 3: SERVER HOP WITH RARE ITEM CHECK & 1.5s DELAY]
-local function ServerHop()
-    -- [PART A] RARE ITEM PROTECTION
-    if Config.StopOnRareItem then
-        local rareItemsList = {"God's Chalice", "Fist of Darkness"}
-        for _, item in ipairs(rareItemsList) do
-            if Player.Backpack:FindFirstChild(item) or Player.Character:FindFirstChild(item) then
-                StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
-                StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
-                warn("Nahsor ChestHub: Rare Item Found (" .. item .. "). Stopping to prevent loss.")
-                Farming = false -- Kill the loop
-                Hopping = true -- Prevent further hops
-                return -- STOP HERE
-            end
+-- [MODIFICATION 2 & 3: FIXED SERVER HOP & RARE ITEM CHECK]
+local function CheckRareItems()
+    for _, item in pairs(RareItems) do
+        -- Checks both Backpack (Inventory) and Character (Equipped)
+        if Player.Backpack:FindFirstChild(item) or Player.Character:FindFirstChild(item) then
+            return true
         end
     end
+    return false
+end
 
-    -- [PART B] LOADING BUFFER (Wait 5s if game not loaded)
+local function ServerHop()
+    -- [A] STOP ON RARE ITEM
+    if Config.StopOnRareItem and CheckRareItems() then
+        StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
+        StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+        warn("NAHSOR CHESTHUB: Rare Item Found. Stopping Hop.")
+        Farming = false
+        Hopping = true -- Lock hopping
+        return
+    end
+
+    -- [B] LOADING BUFFER (Wait 5s if game isn't loaded)
     local function AreChestsLoaded()
         local c1 = workspace:FindFirstChild("Chests")
         local c2 = workspace:FindFirstChild("Chest")
@@ -153,7 +160,6 @@ local function ServerHop()
         end
     end
 
-    -- [PART C] HOP LOGIC
     if Hopping then return end
     Hopping = true
     StatusLbl.Text = "Searching Server..."
@@ -162,6 +168,7 @@ local function ServerHop()
     local AllIDs = {}
     local actualHour = os_date("!*t").hour
     
+    -- File Management
     local File = pcall(function()
         AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json"))
     end)
@@ -179,7 +186,7 @@ local function ServerHop()
         local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
         
         while true do
-            -- [CHANGE 3] 1.5 SECOND DELAY HERE TO FIX API ERROR
+            -- [C] 1.5s API DELAY (Prevents Retrying Error)
             task_wait(1.5) 
             
             local cursorUrl = url
@@ -194,6 +201,7 @@ local function ServerHop()
                         local Max = tonumber(v.maxPlayers)
                         local Playing = tonumber(v.playing)
                         
+                        -- [SAFETY] Must have 2+ slots free
                         if Playing < (Max - 1) and ID ~= game.JobId then
                             local Possible = true
                             for _, Existing in pairs(AllIDs) do
@@ -269,6 +277,7 @@ local function SendWebhook(item)
         local duration = os_time() - Stats.StartTime
         local timeString = string.format("%02d:%02d:%02d", math_floor(duration/3600), math_floor((duration%3600)/60), duration%60)
         
+        -- Formatting the fruit string
         local fruitText = (item and item ~= "") and item or "None"
 
         local desc = "**Player:** " .. Player.Name .. "\n"
@@ -278,6 +287,7 @@ local function SendWebhook(item)
         desc = desc .. "**Total.Money:** $" .. tostring(currentBeli) .. "\n"
         desc = desc .. "**Fruit:** " .. fruitText
 
+        -- If 'item' exists (fruits found), Title is RARE ITEM FOUND
         local title = (item and item ~= "") and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT"
         local color = (item and item ~= "") and 16711680 or 65280
         
@@ -531,7 +541,7 @@ local function MainFarm()
         StatusLbl.Text = "Fruit Mode: Scanning..."
         local foundAny = false
         
-for _, v in pairs(Workspace:GetChildren()) do
+        for _, v in pairs(Workspace:GetChildren()) do
             if v:IsA("Tool") and string.find(v.Name, "Fruit") then
                 foundAny = true
                 StatusLbl.Text = "Collecting: " .. v.Name
@@ -544,6 +554,7 @@ for _, v in pairs(Workspace:GetChildren()) do
         
         if foundAny then
              StatusLbl.Text = "Fruits Collected. Hopping..."
+             -- [FIXED] Send list of names: "Rocket, Spin"
              if Config.WebhookURL ~= "" then 
                  SendWebhook(table.concat(CollectedFruits, ", ")) 
              end
