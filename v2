@@ -1,8 +1,7 @@
--- // NAHSOR CHESTHUB V12.9 - FINAL OPTIMIZED //
--- [FIXES: Speed Up Scan | Team Select | Safe Fast Mode | Collection Speed]
+-- // NAHSOR CHESTHUB V13.0 //
+-- [FIXES: User Fast Mode | Team Select | Money Counter | Anti-Admin]
 
--- // [1] INIT & SAFEGUARDS //
-if not game:IsLoaded() then game.Loaded:Wait() end -- Fixes Team Selection Error
+if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait() until game.Players.LocalPlayer
 repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
 
@@ -27,16 +26,16 @@ local os_time, os_date = os.time, os.date
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 
--- // [2] CONFIGURATION //
+-- // [1] CONFIGURATION //
 local Config = {
     WebhookURL = "https://discord.com/api/webhooks/1462804070728335370/Z2THKlk_RNm-R144EMLiLe9FTowNStytcgX5Vyprzb5LHTUqT3o72O-SVejkR_mcUure",
     TweenSpeed = 350,       
-    CollectionWait = 0.05, -- Faster Collection
+    CollectionWait = 0.05, 
     AFKMode = true,
     
     -- [GRAPHICS]
-    FastMode = true,        -- Gray Walls, No Shadows (High FPS, Safe)
-    UltraFastMode = false,  -- Potato Mode (No Textures, No Particles, Ugly)
+    FastMode = true,        -- YOUR CUSTOM FAST MODE (Swapped)
+    UltraFastMode = false,  -- POTATO MODE (Unchanged)
     
     StopOnRareItem = true,
     AdminHop = true, 
@@ -53,7 +52,7 @@ pcall(function()
     end
 end)
 
--- // [3] VARIABLES //
+-- // [2] VARIABLES //
 local Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
 local ChestCache = {}
 local VisitedChests = {} 
@@ -65,20 +64,29 @@ local LastPos = Vector3.new(0,0,0)
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local LastCacheRefresh = 0
 
--- // [4] ROBUST TEAM SELECT //
+pcall(function() Stats.StartMoney = Player.Data.Beli.Value end)
+
+-- // [3] FIXED TEAM SELECT //
 task_spawn(function()
-    local TeamAttempts = 0
-    while (Player.Team == nil or Player.Team.Name == "Neutral") and TeamAttempts < 30 do
-        local s, e = pcall(function()
+    -- Wait for connection
+    repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+    
+    -- Force Team Loop
+    local attempts = 0
+    while attempts < 60 do -- Try for 60 seconds
+        if Player.Team and Player.Team.Name == "Pirates" then break end
+        
+        pcall(function()
             ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates")
         end)
-        if not s then task_wait(1) end
-        TeamAttempts = TeamAttempts + 1
-        task_wait(0.5)
+        
+        if Player.Team and Player.Team.Name == "Pirates" then break end
+        attempts = attempts + 1
+        task_wait(1)
     end
 end)
 
--- // [5] UTILITY FUNCTIONS //
+-- // [4] UTILITY FUNCTIONS //
 
 -- Anti-AFK
 Player.Idled:Connect(function()
@@ -107,35 +115,29 @@ end
 
 -- [GRAPHICS LOGIC]
 
--- Mode 1: Normal Fast Mode (Gray World, No Lag, Safe UI)
+-- Mode 1: USER'S CUSTOM FAST MODE (Swapped per request)
 local function ApplyFastMode()
     if Config.UltraFastMode then return end
     if not Config.FastMode then return end
     
-    pcall(function()
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 9e9
-        Lighting.Brightness = 2
-        for _, v in pairs(Lighting:GetChildren()) do
-            if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("Atmosphere") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
-                v.Enabled = false
-            end
+    local L = game:GetService("Lighting")
+    L.GlobalShadows, L.FogEnd = false, 9e9
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    
+    local function Fastify(v)
+        if v:IsA("BasePart") then 
+            pcall(function() v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false end)
         end
-        
-        -- Remove Textures but KEEP Parts (Gray World)
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("Texture") or v:IsA("Decal") then
-                v.Transparency = 1
-            end
+        if v:IsA("Decal") or v:IsA("Texture") then 
+            v.Transparency = 1 
         end
-        
-        workspace.Terrain.WaterWaveSize = 0
-        workspace.Terrain.WaterWaveSpeed = 0
-        workspace.Terrain.WaterReflectance = 0
-    end)
+    end
+    
+    for _,v in pairs(workspace:GetDescendants()) do Fastify(v) end
+    workspace.DescendantAdded:Connect(Fastify)
 end
 
--- Mode 2: Ultra Potato Mode (Your Script)
+-- Mode 2: Ultra Potato Mode (Unchanged)
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     
@@ -240,10 +242,7 @@ local function ServerHop()
         local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
         
         while true do
-            -- [SWEET SPOT DELAY] 
-            -- 0.35s = Fast but Safe. 
-            -- If you still get API Error, increase to 0.5. If slow, decrease to 0.25.
-            task_wait(0.35) 
+            task_wait(0.35) -- Optimal Speed
             
             local cursorUrl = url
             if foundAnything ~= "" then cursorUrl = url .. '&cursor=' .. foundAnything end
@@ -284,7 +283,6 @@ local function ServerHop()
                     StatusLbl.Text = "Re-scanning..."
                 end
             else
-                -- Only slow down if API actually fails
                 StatusLbl.Text = "API Busy, Waiting..."
                 task_wait(2)
             end
@@ -293,7 +291,22 @@ local function ServerHop()
     task_spawn(Scan)
 end
 
--- [EVENTS]
+-- [EVENTS: ANTI-ADMIN & ERRORS]
+Players.PlayerAdded:Connect(function(v)
+    if Config.AdminHop then
+        pcall(function()
+            -- Gamer Robot ID: 4372130, Rank > 20 is dangerous
+            if v:IsInGroup(4372130) and v:GetRankInGroup(4372130) > 20 then
+                StatusLbl.Text = "ADMIN DETECTED! HOPPING..."
+                StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+                warn("NAHSOR CHESTHUB: Admin joined. Hopping.")
+                Farming = false
+                ServerHop()
+            end
+        end)
+    end
+end)
+
 TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
     if player == Player then
         StatusLbl.Text = "TP Fail! New Hop..."
@@ -348,7 +361,7 @@ local function SendWebhook(item)
                 ["title"] = title,
                 ["description"] = desc,
                 ["color"] = color,
-                ["footer"] = { ["text"] = "Nahsor ChestHub V12.9" }
+                ["footer"] = { ["text"] = "Nahsor ChestHub V13.0" }
             }}
         }
         
@@ -412,6 +425,16 @@ FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
 TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
 EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
 StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
+
+-- FIXED MONEY COUNTER (Real-time)
+task_spawn(function()
+    task_wait(2) -- Wait for data load
+    if Player.Data and Player.Data:FindFirstChild("Beli") then
+        Player.Data.Beli.Changed:Connect(function()
+            EarnedLbl.Text = "Money: $"..(Player.Data.Beli.Value - Stats.StartMoney)
+        end)
+    end
+end)
 
 local Divider = Instance.new("Frame", MainFrame)
 Divider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
@@ -531,7 +554,7 @@ local function MainFarm()
         
         local target, minDist = nil, math_huge
         for _, v in pairs(ChestCache) do
-            if v and v.Parent then
+           if v and v.Parent then
                 local dist = (v.Position - root.Position).Magnitude
                 if dist < Config.MaxFarmDistance and not VisitedChests[v] then
                      local isDup = false
@@ -545,7 +568,8 @@ local function MainFarm()
                 end
             end
         end
-     if target then
+        
+        if target then
             IsMoving = true
             StatusLbl.Text = "Traveling: " .. math_floor(minDist) .. "m"
             local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
@@ -558,7 +582,7 @@ local function MainFarm()
                 StatusLbl.Text = "Collecting..."
                 root.CFrame = target.CFrame
                 
-                -- [SPEED FIX] INSTANT COLLECT (TOUCH + CLICK)
+                -- [SPEED FIX] INSTANT COLLECT
                 firetouchinterest(root, target, 0)
                 firetouchinterest(root, target, 1)
                 pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
@@ -567,12 +591,6 @@ local function MainFarm()
                 table.insert(CollectedPositions, target.Position)
                 Stats.Chests = Stats.Chests + 1
                 ChestsLbl.Text = "Chests: "..Stats.Chests
-                task_spawn(function()
-                     task_wait(0.5)
-                     if Player.Data and Player.Data.Beli then
-                         EarnedLbl.Text = "Money: $"..(Player.Data.Beli.Value - Stats.StartMoney)
-                     end
-                end)
                 task_wait(Config.CollectionWait)
             end
             IsMoving = false
@@ -638,8 +656,6 @@ AFKBtn.MouseButton1Click:Connect(function()
     AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
     BlurFrame.Visible = IsAFK
 end)
-
-pcall(function() Stats.StartMoney = Player.Data.Beli.Value end)
 
 -- MAIN LOOP
 task_spawn(function()
