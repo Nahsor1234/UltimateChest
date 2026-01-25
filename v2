@@ -1,4 +1,4 @@
--- // NAHSOR CHESTHUB V12.7 FINAL //
+-- // NAHSOR CHESTHUB V12.8 POTATO EDITION //
 
 -- // [1] SERVICES //
 local game = game
@@ -28,7 +28,11 @@ local Config = {
     TweenSpeed = 350,       
     CollectionWait = 0.1, 
     AFKMode = true,
-    FastMode = true,
+    
+    -- [GRAPHICS SETTINGS]
+    FastMode = true,        -- Safe Mode (Lighting changes only, keeps UI/Textures)
+    UltraFastMode = false,  -- POTATO MODE (Removes EVERYTHING for Overnight)
+    
     StopOnRareItem = true,
     AdminHop = true, 
     FarmChests = true,
@@ -93,35 +97,75 @@ local function MakeDraggable(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- [MODIFICATION 1: SAFE FAST MODE]
--- Removed "CleanObject" function that was deleting UI.
--- This version only disables Lighting effects and Water physics.
+-- [MODE 1: NORMAL FAST MODE (SAFE)]
 local function ApplyFastMode()
+    if Config.UltraFastMode then return end -- Skip if Ultra is on
     if not Config.FastMode then return end
+    
     pcall(function()
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 9e9
         Lighting.Brightness = 2
-        
-        -- Only disable effects, do not destroy parts
         for _, v in pairs(Lighting:GetChildren()) do
             if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("Atmosphere") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
                 v.Enabled = false
             end
         end
-        
-        -- Safe Terrain optimization
         workspace.Terrain.WaterWaveSize = 0
         workspace.Terrain.WaterWaveSpeed = 0
         workspace.Terrain.WaterReflectance = 0
     end)
 end
-task_spawn(ApplyFastMode)
 
--- [MODIFICATION 2 & 3: FIXED SERVER HOP & RARE ITEM CHECK]
+-- [MODE 2: ULTRA FAST MODE (POTATO)]
+local function ApplyUltraFastMode()
+    if not Config.UltraFastMode then return end
+    
+    pcall(function()
+        local L = game:GetService("Lighting")
+        L.GlobalShadows = false
+        L.FogEnd = 9e9
+        L.Brightness = 0
+        L.Ambient = Color3.new(1,1,1)
+        L.OutdoorAmbient = Color3.new(1,1,1)
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        
+        for _,v in pairs(L:GetChildren()) do 
+            if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end 
+        end
+        
+        local function Clear(v)
+            if v:IsA("BasePart") then
+                v.Material = Enum.Material.SmoothPlastic
+                v.Reflectance = 0
+                v.CastShadow = false
+            elseif v:IsA("Decal") or v:IsA("Texture") then
+                v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") then
+                v:Destroy()
+            elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then
+                v:Destroy()
+            end
+        end
+        
+        for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
+        workspace.DescendantAdded:Connect(Clear)
+    end)
+end
+
+-- ACTIVATE GRAPHICS
+task_spawn(function()
+    task_wait(1) -- Wait for config to load
+    if Config.UltraFastMode then
+        ApplyUltraFastMode()
+    elseif Config.FastMode then
+        ApplyFastMode()
+    end
+end)
+
+-- [SERVER HOP: FIXED + RARE ITEM STOP]
 local function CheckRareItems()
     for _, item in pairs(RareItems) do
-        -- Checks both Backpack (Inventory) and Character (Equipped)
         if Player.Backpack:FindFirstChild(item) or Player.Character:FindFirstChild(item) then
             return true
         end
@@ -136,11 +180,11 @@ local function ServerHop()
         StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
         warn("NAHSOR CHESTHUB: Rare Item Found. Stopping Hop.")
         Farming = false
-        Hopping = true -- Lock hopping
+        Hopping = true 
         return
     end
 
-    -- [B] LOADING BUFFER (Wait 5s if game isn't loaded)
+    -- [B] LOADING BUFFER
     local function AreChestsLoaded()
         local c1 = workspace:FindFirstChild("Chests")
         local c2 = workspace:FindFirstChild("Chest")
@@ -155,7 +199,7 @@ local function ServerHop()
             timer = timer + 1
             if AreChestsLoaded() then
                 StatusLbl.Text = "Game Loaded! Resuming..."
-                return -- Cancel hop, go back to farming
+                return 
             end
         end
     end
@@ -168,7 +212,6 @@ local function ServerHop()
     local AllIDs = {}
     local actualHour = os_date("!*t").hour
     
-    -- File Management
     local File = pcall(function()
         AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json"))
     end)
@@ -186,7 +229,7 @@ local function ServerHop()
         local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
         
         while true do
-            -- [C] 1.5s API DELAY (Prevents Retrying Error)
+            -- [C] 1.5s API DELAY
             task_wait(1.5) 
             
             local cursorUrl = url
@@ -201,7 +244,6 @@ local function ServerHop()
                         local Max = tonumber(v.maxPlayers)
                         local Playing = tonumber(v.playing)
                         
-                        -- [SAFETY] Must have 2+ slots free
                         if Playing < (Max - 1) and ID ~= game.JobId then
                             local Possible = true
                             for _, Existing in pairs(AllIDs) do
@@ -262,7 +304,7 @@ task_spawn(function()
     end)
 end)
 
--- Webhook (UPDATED)
+-- Webhook
 local function SendWebhook(item)
     if Config.WebhookURL == "" or Config.WebhookURL:find("discord") == nil then return end
     task_spawn(function()
@@ -276,8 +318,6 @@ local function SendWebhook(item)
         
         local duration = os_time() - Stats.StartTime
         local timeString = string.format("%02d:%02d:%02d", math_floor(duration/3600), math_floor((duration%3600)/60), duration%60)
-        
-        -- Formatting the fruit string
         local fruitText = (item and item ~= "") and item or "None"
 
         local desc = "**Player:** " .. Player.Name .. "\n"
@@ -287,7 +327,6 @@ local function SendWebhook(item)
         desc = desc .. "**Total.Money:** $" .. tostring(currentBeli) .. "\n"
         desc = desc .. "**Fruit:** " .. fruitText
 
-        -- If 'item' exists (fruits found), Title is RARE ITEM FOUND
         local title = (item and item ~= "") and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT"
         local color = (item and item ~= "") and 16711680 or 65280
         
@@ -296,7 +335,7 @@ local function SendWebhook(item)
                 ["title"] = title,
                 ["description"] = desc,
                 ["color"] = color,
-                ["footer"] = { ["text"] = "Nahsor ChestHub V12.7" }
+                ["footer"] = { ["text"] = "Nahsor ChestHub V12.8" }
             }}
         }
         
@@ -526,7 +565,7 @@ local function MainFarm()
         else
             StatusLbl.Text = "Done! Hopping in 3s..."
             
-            -- [FIXED] Send Webhook with fruit names if any exist
+            -- Webhook with fruit names
             local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
             if Stats.Chests > 0 or fruits then 
                 SendWebhook(fruits) 
@@ -554,7 +593,6 @@ local function MainFarm()
         
         if foundAny then
              StatusLbl.Text = "Fruits Collected. Hopping..."
-             -- [FIXED] Send list of names: "Rocket, Spin"
              if Config.WebhookURL ~= "" then 
                  SendWebhook(table.concat(CollectedFruits, ", ")) 
              end
