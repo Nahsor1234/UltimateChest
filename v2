@@ -1,6 +1,11 @@
--- // NAHSOR CHESTHUB V12.8 POTATO EDITION //
+-- // NAHSOR CHESTHUB V12.9 - FINAL OPTIMIZED //
+-- [FIXES: Speed Up Scan | Team Select | Safe Fast Mode | Collection Speed]
 
--- // [1] SERVICES //
+-- // [1] INIT & SAFEGUARDS //
+if not game:IsLoaded() then game.Loaded:Wait() end -- Fixes Team Selection Error
+repeat task.wait() until game.Players.LocalPlayer
+repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+
 local game = game
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
@@ -26,12 +31,12 @@ local PlayerGui = Player:WaitForChild("PlayerGui")
 local Config = {
     WebhookURL = "https://discord.com/api/webhooks/1462804070728335370/Z2THKlk_RNm-R144EMLiLe9FTowNStytcgX5Vyprzb5LHTUqT3o72O-SVejkR_mcUure",
     TweenSpeed = 350,       
-    CollectionWait = 0.1, 
+    CollectionWait = 0.05, -- Faster Collection
     AFKMode = true,
     
-    -- [GRAPHICS SETTINGS]
-    FastMode = true,        -- Safe Mode (Lighting changes only, keeps UI/Textures)
-    UltraFastMode = false,  -- POTATO MODE (Removes EVERYTHING for Overnight)
+    -- [GRAPHICS]
+    FastMode = true,        -- Gray Walls, No Shadows (High FPS, Safe)
+    UltraFastMode = false,  -- Potato Mode (No Textures, No Particles, Ugly)
     
     StopOnRareItem = true,
     AdminHop = true, 
@@ -60,12 +65,15 @@ local LastPos = Vector3.new(0,0,0)
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local LastCacheRefresh = 0
 
--- // [4] AUTO TEAM SELECT //
+-- // [4] ROBUST TEAM SELECT //
 task_spawn(function()
-    while Player.Team == nil or Player.Team.Name == "Neutral" do
-        pcall(function()
+    local TeamAttempts = 0
+    while (Player.Team == nil or Player.Team.Name == "Neutral") and TeamAttempts < 30 do
+        local s, e = pcall(function()
             ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates")
         end)
+        if not s then task_wait(1) end
+        TeamAttempts = TeamAttempts + 1
         task_wait(0.5)
     end
 end)
@@ -97,9 +105,11 @@ local function MakeDraggable(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- [MODE 1: NORMAL FAST MODE (SAFE)]
+-- [GRAPHICS LOGIC]
+
+-- Mode 1: Normal Fast Mode (Gray World, No Lag, Safe UI)
 local function ApplyFastMode()
-    if Config.UltraFastMode then return end -- Skip if Ultra is on
+    if Config.UltraFastMode then return end
     if not Config.FastMode then return end
     
     pcall(function()
@@ -111,13 +121,21 @@ local function ApplyFastMode()
                 v.Enabled = false
             end
         end
+        
+        -- Remove Textures but KEEP Parts (Gray World)
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("Texture") or v:IsA("Decal") then
+                v.Transparency = 1
+            end
+        end
+        
         workspace.Terrain.WaterWaveSize = 0
         workspace.Terrain.WaterWaveSpeed = 0
         workspace.Terrain.WaterReflectance = 0
     end)
 end
 
--- [MODE 2: ULTRA FAST MODE (POTATO)]
+-- Mode 2: Ultra Potato Mode (Your Script)
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     
@@ -125,7 +143,7 @@ local function ApplyUltraFastMode()
         local L = game:GetService("Lighting")
         L.GlobalShadows = false
         L.FogEnd = 9e9
-        L.Brightness = 0
+        L.Brightness = 100
         L.Ambient = Color3.new(1,1,1)
         L.OutdoorAmbient = Color3.new(1,1,1)
         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
@@ -137,7 +155,6 @@ local function ApplyUltraFastMode()
         local function Clear(v)
             if v:IsA("BasePart") then
                 v.Material = Enum.Material.SmoothPlastic
-                v.Reflectance = 0
                 v.CastShadow = false
             elseif v:IsA("Decal") or v:IsA("Texture") then
                 v.Transparency = 1
@@ -153,17 +170,13 @@ local function ApplyUltraFastMode()
     end)
 end
 
--- ACTIVATE GRAPHICS
 task_spawn(function()
-    task_wait(1) -- Wait for config to load
-    if Config.UltraFastMode then
-        ApplyUltraFastMode()
-    elseif Config.FastMode then
-        ApplyFastMode()
-    end
+    task_wait(1)
+    if Config.UltraFastMode then ApplyUltraFastMode()
+    elseif Config.FastMode then ApplyFastMode() end
 end)
 
--- [SERVER HOP: FIXED + RARE ITEM STOP]
+-- [SERVER HOP LOGIC]
 local function CheckRareItems()
     for _, item in pairs(RareItems) do
         if Player.Backpack:FindFirstChild(item) or Player.Character:FindFirstChild(item) then
@@ -174,17 +187,15 @@ local function CheckRareItems()
 end
 
 local function ServerHop()
-    -- [A] STOP ON RARE ITEM
     if Config.StopOnRareItem and CheckRareItems() then
         StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
         StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
-        warn("NAHSOR CHESTHUB: Rare Item Found. Stopping Hop.")
+        warn("NAHSOR CHESTHUB: Rare Item Found. Stopping.")
         Farming = false
-        Hopping = true 
+        Hopping = true
         return
     end
 
-    -- [B] LOADING BUFFER
     local function AreChestsLoaded()
         local c1 = workspace:FindFirstChild("Chests")
         local c2 = workspace:FindFirstChild("Chest")
@@ -229,8 +240,10 @@ local function ServerHop()
         local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
         
         while true do
-            -- [C] 1.5s API DELAY
-            task_wait(1.5) 
+            -- [SWEET SPOT DELAY] 
+            -- 0.35s = Fast but Safe. 
+            -- If you still get API Error, increase to 0.5. If slow, decrease to 0.25.
+            task_wait(0.35) 
             
             local cursorUrl = url
             if foundAnything ~= "" then cursorUrl = url .. '&cursor=' .. foundAnything end
@@ -265,13 +278,14 @@ local function ServerHop()
                 
                 if result.nextPageCursor and result.nextPageCursor ~= "null" then
                     foundAnything = result.nextPageCursor
-                    StatusLbl.Text = "Scanning Page..."
+                    StatusLbl.Text = "Scanning..."
                 else
                     foundAnything = "" 
                     StatusLbl.Text = "Re-scanning..."
                 end
             else
-                StatusLbl.Text = "API Error, Retrying..."
+                -- Only slow down if API actually fails
+                StatusLbl.Text = "API Busy, Waiting..."
                 task_wait(2)
             end
         end
@@ -279,7 +293,7 @@ local function ServerHop()
     task_spawn(Scan)
 end
 
--- [SAFETY 2] TELEPORT FAIL DETECTOR
+-- [EVENTS]
 TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
     if player == Player then
         StatusLbl.Text = "TP Fail! New Hop..."
@@ -288,7 +302,6 @@ TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage
     end
 end)
 
--- [SAFETY 3] KICK/ERROR DETECTOR
 task_spawn(function()
     CoreGui.RobloxPromptGui.DescendantAdded:Connect(function(child)
         if child.Name == "ErrorTitle" or child.Name == "ErrorPrompt" then
@@ -335,7 +348,7 @@ local function SendWebhook(item)
                 ["title"] = title,
                 ["description"] = desc,
                 ["color"] = color,
-                ["footer"] = { ["text"] = "Nahsor ChestHub V12.8" }
+                ["footer"] = { ["text"] = "Nahsor ChestHub V12.9" }
             }}
         }
         
@@ -350,7 +363,7 @@ local function SendWebhook(item)
     end)
 end
 
--- // [6] UI SETUP //
+-- // [UI SETUP] //
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ChestHub_Core"
 ScreenGui.IgnoreGuiInset = true 
@@ -461,10 +474,8 @@ local function StoreFruit(fruit)
         firetouchinterest(Player.Character.HumanoidRootPart, fruit.Handle, 1)
         task_wait(0.5)
     end
-    
     table.insert(CollectedFruits, fruit:GetAttribute("OriginalName") or fruit.Name)
     FruitLbl.Text = "Fruit: " .. table.concat(CollectedFruits, ", ")
-    
     local args = { [1] = "StoreFruit", [2] = fruit:GetAttribute("OriginalName") or fruit.Name, [3] = fruit }
     pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args)) end)
 end
@@ -534,8 +545,7 @@ local function MainFarm()
                 end
             end
         end
-        
-        if target then
+     if target then
             IsMoving = true
             StatusLbl.Text = "Traveling: " .. math_floor(minDist) .. "m"
             local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
@@ -547,8 +557,12 @@ local function MainFarm()
             if target.Parent then
                 StatusLbl.Text = "Collecting..."
                 root.CFrame = target.CFrame
+                
+                -- [SPEED FIX] INSTANT COLLECT (TOUCH + CLICK)
                 firetouchinterest(root, target, 0)
                 firetouchinterest(root, target, 1)
+                pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
+                
                 VisitedChests[target] = true
                 table.insert(CollectedPositions, target.Position)
                 Stats.Chests = Stats.Chests + 1
