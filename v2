@@ -145,7 +145,7 @@ local function ApplyUltraFastMode()
         local L = game:GetService("Lighting")
         L.GlobalShadows = false
         L.FogEnd = 9e9
-        L.Brightness = 100
+        L.Brightness = 30
         L.Ambient = Color3.new(1,1,1)
         L.OutdoorAmbient = Color3.new(1,1,1)
         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
@@ -205,9 +205,9 @@ local function ServerHop()
     end
 
     if not AreChestsLoaded() then
-        StatusLbl.Text = "Waiting for game load (5s)..."
+        StatusLbl.Text = "Waiting for game load (3s)..."
         local timer = 0
-        while timer < 5 do
+        while timer < 3 do
             task_wait(1)
             timer = timer + 1
             if AreChestsLoaded() then
