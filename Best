@@ -283,7 +283,11 @@ local function ServerHop()
                     StatusLbl.Text = "Re-scanning..."
                 end
             else
-                StatusLbl.Text = "API Busy, Waiting..."
+                -- [UPDATE WATCHDOG COUNTER]
+                -- This part runs if the 'success' from pcall is false
+                getgenv().API_Error_Count = (getgenv().API_Error_Count or 0) + 1
+                
+                StatusLbl.Text = "API Busy (" .. getgenv().API_Error_Count .. "/6)..."
                 task_wait(2)
             end
         end
