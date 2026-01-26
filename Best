@@ -678,45 +678,62 @@ task_spawn(function()
     end
 end)
 
--- // [ADVANCED TIME LIMIT FAILSAFE] //
--- [Logic: If timer > MaxTime, force a smart hop to a random new server]
+-- // [FINAL FAILSAFE: ABSOLUTE FORCE TIME-HOP] //
 task.spawn(function()
-    while task.wait(5) do
-        local elapsed = os.time() - Stats.StartTime
+    local PrivateStart = os.time()
+    -- Use local services to ensure they work even if globals are messed up
+    local TS = game:GetService("TeleportService")
+    local HS = game:GetService("HttpService")
+    local Plrs = game:GetService("Players")
+    
+    while task.wait(2) do
+        local elapsed = os.time() - PrivateStart
         
-        -- Only hop if Farming is ON and Time Limit is reached
-        if Farming and Config.MaxTime and elapsed >= Config.MaxTime then
-            StatusLbl.Text = "TIME LIMIT REACHED! HOPPING..."
-            StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+        if Config.MaxTime and elapsed >= Config.MaxTime then
+            -- 1. KILL ALL MAIN SCRIPT PROCESSES
+            Farming = false
+            Hopping = true
             
-            -- [ADVANCED HOP METHOD: DESCENDING SORT + SHUFFLE]
-            -- This finds servers that are newer/emptier and shuffles them to avoid collisions
-            local PlaceID = game.PlaceId
-            local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Desc&limit=100'
-            
-            local success, result = pcall(function() 
-                return game:GetService("HttpService"):JSONDecode(game:HttpGet(url)) 
-            end)
-            
-            if success and result and result.data then
-                local ServerList = result.data
-                -- Shuffle the list (Randomize) so we don't all join the same server
-                for i = #ServerList, 2, -1 do
-                    local j = math.random(i)
-                    ServerList[i], ServerList[j] = ServerList[j], ServerList[i]
+            -- Stop any active Tweens (Movement)
+            pcall(function() 
+                local root = LP.Character:FindFirstChild("HumanoidRootPart")
+                for _, v in pairs(game:GetService("TweenService"):GetTweens()) do
+                    v:Cancel()
                 end
-                
-                for _, v in pairs(ServerList) do
-                    -- Strict Check: Must have at least 2 open slots
-                    if v.playing < (v.maxPlayers - 2) and tostring(v.id) ~= game.JobId then
-                        game:GetService("TeleportService"):TeleportToPlaceInstance(PlaceID, v.id, game.Players.LocalPlayer)
-                        task.wait(10) -- Wait for TP to grab
+                -- Freeze character so we don't move during teleport
+                if root then root.Anchored = true end 
+            end)
+
+            if StatusLbl then 
+                StatusLbl.Text = "TIME EXPIRED! FORCING EXIT..." 
+                StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+            end
+
+            -- 2. FETCH NEW SERVER (DESCENDING SORT)
+            local success, result = pcall(function() 
+                return HS:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. game.PlaceId .. '/servers/Public?sortOrder=Desc&limit=100')) 
+            end)
+
+            if success and result and result.data then
+                local servers = result.data
+                -- Shuffle the list
+                for i = #servers, 2, -1 do
+                    local j = math.random(i)
+                    servers[i], servers[j] = servers[j], servers[i]
+                end
+
+                for _, v in pairs(servers) do
+                    -- Buffering to 3 slots for 100% success rate
+                    if v.playing < (v.maxPlayers - 3) and tostring(v.id) ~= game.JobId then
+                        TS:TeleportToPlaceInstance(game.PlaceId, v.id, LP)
+                        task.wait(7) -- Short wait before trying next
                     end
                 end
             end
-            
-            -- If advanced hop fails, wait 5s and try again
-            StatusLbl.Text = "Hop Failed... Retrying..."
+
+            -- 3. THE "NUCLEAR" OPTION (If list fails, just leave)
+            StatusLbl.Text = "EMERGENCY HOP..."
+            TS:Teleport(game.PlaceId, LP) 
             task.wait(5)
         end
     end
