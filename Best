@@ -146,7 +146,7 @@ local function ApplyUltraFastMode()
         local L = game:GetService("Lighting")
         L.GlobalShadows = false
         L.FogEnd = 9e9
-        L.Brightness = 40
+        L.Brightness = 20
         L.Ambient = Color3.new(1,1,1)
         L.OutdoorAmbient = Color3.new(1,1,1)
         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
