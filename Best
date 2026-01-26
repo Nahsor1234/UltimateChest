@@ -147,8 +147,8 @@ local function ApplyUltraFastMode()
         L.GlobalShadows = false
         L.FogEnd = 9e9
         L.Brightness = 0.4
-        L.Ambient = Color3.new(0.4,0.4,0.4)
-        L.OutdoorAmbient = Color3.new(0.4,0.4,0.4)
+        L.Ambient = Color3.new(0,0,0)
+        L.OutdoorAmbient = Color3.new(0,0,0)
         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
         
         for _,v in pairs(L:GetChildren()) do 
