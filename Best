@@ -678,75 +678,70 @@ task_spawn(function()
     end
 end)
 
--- // [FINAL FAILSAFE: THE UNSTOPPABLE V14.0] //
+-- // [FINAL FAILSAFE: SELF-SUFFICIENT BYPASS] //
+-- Place this at the very last line of your script.
 task.spawn(function()
-    local PrivateStart = os.time()
-    local TS = game:GetService("TeleportService")
+    local StartClock = os.time()
     local HS = game:GetService("HttpService")
-    
-    -- Function to handle the actual jump logic
-    local function ForceJump(attempt)
-        Farming = false
-        Hopping = true
+    local TS = game:GetService("TeleportService")
+    local RS = game:GetService("RunService")
+
+    while task.wait(5) do
+        local elapsed = os.time() - StartClock
         
-        -- Stop everything to prevent "Teleport Cancelled"
-        pcall(function()
-            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-                LP.Character.HumanoidRootPart.Anchored = true
-            end
-            for _, v in pairs(game:GetService("TweenService"):GetTweens()) do v:Cancel() end
-        end)
+        -- Check if MaxTime reached (Safe check for Config.MaxTime)
+        if Config and Config.MaxTime and elapsed >= Config.MaxTime then
+            
+            -- 1. KILL COLLISIONS & LAG
+            -- This is the "No Response" bypass. It freezes the engine to prioritize the connection.
+            Farming = false
+            Hopping = true
+            
+            pcall(function()
+                if StatusLbl then 
+                    StatusLbl.Text = "BYPASSING: FREEZING ENGINE..." 
+                    StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+                end
+                
+                -- Stop 3D Rendering (Huge performance boost for teleporting)
+                RS:Set3dRenderingEnabled(false)
+                
+                -- Anchor character to prevent physics-based teleport cancel
+                if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                    LP.Character.HumanoidRootPart.Anchored = true
+                end
+            end)
 
-        if StatusLbl then 
-            StatusLbl.Text = "FORCE HOP (Attempt " .. attempt .. ")..." 
-            StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
-        end
-
-        -- METHOD A: The Smart Search (Only try this on attempt 1 & 2)
-        if attempt <= 2 then
-            local success, result = pcall(function() 
-                return HS:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. game.PlaceId .. '/servers/Public?sortOrder=Desc&limit=100')) 
+            -- 2. THE SMART SEARCH (Method A)
+            local success, result = pcall(function()
+                return HS:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. game.PlaceId .. '/servers/Public?sortOrder=Desc&limit=100'))
             end)
 
             if success and result and result.data then
-                local servers = result.data
-                -- Shuffle servers
-                for i = #servers, 2, -1 do
+                local serverList = result.data
+                -- Shuffle list for randomness
+                for i = #serverList, 2, -1 do
                     local j = math.random(i)
-                    servers[i], servers[j] = servers[j], servers[i]
+                    serverList[i], serverList[j] = serverList[j], serverList[i]
                 end
 
-                for _, v in pairs(servers) do
-                    -- Buffering to 4 slots now for extreme safety
+                for _, v in pairs(serverList) do
+                    -- v.maxPlayers - 4 ensures there is plenty of room
                     if v.playing < (v.maxPlayers - 4) and tostring(v.id) ~= game.JobId then
                         TS:TeleportToPlaceInstance(game.PlaceId, v.id, LP)
-                        task.wait(6) 
+                        task.wait(8)
                     end
                 end
             end
-        end
 
-        -- METHOD B: THE NUCLEAR BYPASS (If Method A fails or it's attempt 3+)
-        -- This forces Roblox to put you in a random server without checking any lists
-        StatusLbl.Text = "NUCLEAR HOP ACTIVE..."
-        pcall(function() TS:Teleport(game.PlaceId, LP) end)
-        task.wait(10)
-    end
-
-    -- The Monitoring Loop
-    local attemptCount = 0
-    while task.wait(2) do
-        local elapsed = os.time() - PrivateStart
-        
-        if Config.MaxTime and elapsed >= Config.MaxTime then
-            attemptCount = attemptCount + 1
-            ForceJump(attemptCount)
+            -- 3. THE EMERGENCY FALLBACK (Method B)
+            -- If Method A is stuck or API is busy, this forces a join via Roblox's internal system.
+            pcall(function()
+                if StatusLbl then StatusLbl.Text = "EMERGENCY REJOIN..." end
+                TS:Teleport(game.PlaceId, LP)
+            end)
             
-            -- If we are still in the server after 30 seconds of trying, REBOOT
-            if attemptCount > 5 then
-                StatusLbl.Text = "FATAL ERROR: REJOINING..."
-                TS:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) -- Try to force refresh
-            end
+            task.wait(10)
         end
     end
 end)
