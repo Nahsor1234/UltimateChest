@@ -680,4 +680,41 @@ task_spawn(function()
         task_wait(1)
     end
 end)
-        
+
+
+-- // [FINAL SECTION] INTEGRATED API WATCHDOG //
+-- This runs in a separate background thread to rescue the script if the API freezes
+task.spawn(function()
+    if getgenv().WatchdogRunning then return end -- Prevent multiple watchdogs
+    getgenv().WatchdogRunning = true
+    getgenv().API_Error_Count = 0
+
+    while task.wait(3) do
+        -- If the main ServerHop has failed 6 times
+        if getgenv().API_Error_Count >= 6 then
+            StatusLbl.Text = "RESCUE MODE: FORCING HOP..."
+            StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+            
+            local PlaceID = game.PlaceId
+            -- We use a "Descending" sort here to avoid the same "Busy" servers the main loop hit
+            local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Desc&limit=100'
+            
+            local success, result = pcall(function() 
+                return HttpService:JSONDecode(game:HttpGet(url)) 
+            end)
+            
+            if success and result and result.data then
+                for _, v in pairs(result.data) do
+                    if v.playing < v.maxPlayers and tostring(v.id) ~= game.JobId then
+                        getgenv().API_Error_Count = 0 
+                        TeleportService:TeleportToPlaceInstance(PlaceID, v.id, Player)
+                        task.wait(10) -- Give it time to TP
+                    end
+                end
+            end
+            
+            -- If rescue fails, wait longer before trying again to let the API cool down
+            task.wait(3)
+        end
+    end
+end)
