@@ -1,4 +1,3 @@
-
 -- // NAHSOR CHESTHUB V13.0 //
 -- [FIXES: User Fast Mode | Team Select | Money Counter | Anti-Admin]
 
@@ -32,7 +31,7 @@ local Config = {
     WebhookURL = "https://discord.com/api/webhooks/1462804070728335370/Z2THKlk_RNm-R144EMLiLe9FTowNStytcgX5Vyprzb5LHTUqT3o72O-SVejkR_mcUure",
     TweenSpeed = 350,       
     CollectionWait = 0.05, 
-    
+    MaxTime = 120,
     AFKMode = true,
     
     -- [GRAPHICS]
@@ -676,5 +675,49 @@ task_spawn(function()
         local s = os_time() - Stats.StartTime
         TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor(s/3600), math_floor((s%3600)/60), s%60)
         task_wait(1)
+    end
+end)
+
+-- // [ADVANCED TIME LIMIT FAILSAFE] //
+-- [Logic: If timer > MaxTime, force a smart hop to a random new server]
+task.spawn(function()
+    while task.wait(5) do
+        local elapsed = os.time() - Stats.StartTime
+        
+        -- Only hop if Farming is ON and Time Limit is reached
+        if Farming and Config.MaxTime and elapsed >= Config.MaxTime then
+            StatusLbl.Text = "TIME LIMIT REACHED! HOPPING..."
+            StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+            
+            -- [ADVANCED HOP METHOD: DESCENDING SORT + SHUFFLE]
+            -- This finds servers that are newer/emptier and shuffles them to avoid collisions
+            local PlaceID = game.PlaceId
+            local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Desc&limit=100'
+            
+            local success, result = pcall(function() 
+                return game:GetService("HttpService"):JSONDecode(game:HttpGet(url)) 
+            end)
+            
+            if success and result and result.data then
+                local ServerList = result.data
+                -- Shuffle the list (Randomize) so we don't all join the same server
+                for i = #ServerList, 2, -1 do
+                    local j = math.random(i)
+                    ServerList[i], ServerList[j] = ServerList[j], ServerList[i]
+                end
+                
+                for _, v in pairs(ServerList) do
+                    -- Strict Check: Must have at least 2 open slots
+                    if v.playing < (v.maxPlayers - 2) and tostring(v.id) ~= game.JobId then
+                        game:GetService("TeleportService"):TeleportToPlaceInstance(PlaceID, v.id, game.Players.LocalPlayer)
+                        task.wait(10) -- Wait for TP to grab
+                    end
+                end
+            end
+            
+            -- If advanced hop fails, wait 5s and try again
+            StatusLbl.Text = "Hop Failed... Retrying..."
+            task.wait(5)
+        end
     end
 end)
