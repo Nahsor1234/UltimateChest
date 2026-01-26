@@ -554,4 +554,127 @@ local function MainFarm()
         
         local target, minDist = nil, math_huge
         for _, v in pairs(ChestCache) do
- 
+         if v and v.Parent then
+                local dist = (v.Position - root.Position).Magnitude
+                if dist < Config.MaxFarmDistance and not VisitedChests[v] then
+                     local isDup = false
+                     for _, pos in pairs(CollectedPositions) do
+                         if (v.Position - pos).Magnitude < 4 then isDup = true break end
+                     end
+                     if not isDup and dist < minDist then
+                         target = v
+                         minDist = dist
+                     end
+                end
+            end
+        end
+        
+        if target then
+            IsMoving = true
+            StatusLbl.Text = "Traveling: " .. math_floor(minDist) .. "m"
+            local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+            tween:Play()
+            while tween.PlaybackState == Enum.PlaybackState.Playing do
+                if not Farming then tween:Cancel() return end
+                task_wait(0.1)
+            end
+            if target.Parent then
+                StatusLbl.Text = "Collecting..."
+                root.CFrame = target.CFrame
+                
+                -- [SPEED FIX] INSTANT COLLECT
+                firetouchinterest(root, target, 0)
+                firetouchinterest(root, target, 1)
+                pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
+                
+                VisitedChests[target] = true
+                table.insert(CollectedPositions, target.Position)
+                Stats.Chests = Stats.Chests + 1
+                ChestsLbl.Text = "Chests: "..Stats.Chests
+                task_wait(Config.CollectionWait)
+            end
+            IsMoving = false
+        else
+            StatusLbl.Text = "Done! Hopping in 3s..."
+            
+            -- Webhook with fruit names
+            local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
+            if Stats.Chests > 0 or fruits then 
+                SendWebhook(fruits) 
+            end
+            
+            task_wait(3) 
+            ServerHop()
+        end
+
+    -- [MODE B] FRUIT ONLY
+    elseif Config.FarmFruit then
+        StatusLbl.Text = "Fruit Mode: Scanning..."
+        local foundAny = false
+        
+        for _, v in pairs(Workspace:GetChildren()) do
+            if v:IsA("Tool") and string.find(v.Name, "Fruit") then
+                foundAny = true
+                StatusLbl.Text = "Collecting: " .. v.Name
+                root.CFrame = v.Handle.CFrame
+                task_wait(0.3)
+                StoreFruit(v)
+                task_wait(0.5)
+            end
+        end
+        
+        if foundAny then
+             StatusLbl.Text = "Fruits Collected. Hopping..."
+             if Config.WebhookURL ~= "" then 
+                 SendWebhook(table.concat(CollectedFruits, ", ")) 
+             end
+        else
+             StatusLbl.Text = "No Fruit Found. Hopping..."
+        end
+        
+        task_wait(2)
+        ServerHop()
+    end
+end
+
+-- // [8] EVENTS & INIT //
+ToggleBtn.MouseButton1Click:Connect(function()
+    Farming = not Farming
+    ToggleBtn.Text = Farming and "ON" or "OFF"
+    ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
+    StatusLbl.Text = Farming and "Resuming..." or "Paused"
+end)
+
+HopBtn.MouseButton1Click:Connect(function()
+    Hopping = false 
+    ServerHop() 
+end)
+
+AFKBtn.MouseButton1Click:Connect(function()
+    local IsAFK = not BlurFrame.Visible -- Fixed toggle logic
+    AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
+    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
+    BlurFrame.Visible = IsAFK
+end)
+
+-- MAIN LOOP
+task_spawn(function()
+    StatusLbl.Text = "Active"
+    while true do
+        if Farming then 
+            local s, e = pcall(MainFarm) 
+            if not s then warn(e) end
+        end
+        task_wait(0.1)
+    end
+end)
+
+-- TIMER LOOP
+task_spawn(function()
+    while true do
+        local s = os_time() - Stats.StartTime
+        TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor(s/3600), math_floor((s%3600)/60), s%60)
+        task_wait(1)
+    end
+end)
+        
