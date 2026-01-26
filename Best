@@ -145,7 +145,7 @@ local function ApplyUltraFastMode()
         local L = game:GetService("Lighting")
         L.GlobalShadows = false
         L.FogEnd = 9e9
-        L.Brightness = 100
+        L.Brightness = 34
         L.Ambient = Color3.new(1,1,1)
         L.OutdoorAmbient = Color3.new(1,1,1)
         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
@@ -205,9 +205,9 @@ local function ServerHop()
     end
 
     if not AreChestsLoaded() then
-        StatusLbl.Text = "Waiting for game load (5s)..."
+        StatusLbl.Text = "Waiting for game load (3s)..."
         local timer = 0
-        while timer < 5 do
+        while timer < 3 do
             task_wait(1)
             timer = timer + 1
             if AreChestsLoaded() then
@@ -239,7 +239,7 @@ local function ServerHop()
     
     local function Scan()
         local foundAnything = ""
-        local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
+        local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=170'
         
         while true do
             task_wait(0.35) -- Optimal Speed
@@ -256,7 +256,7 @@ local function ServerHop()
                         local Max = tonumber(v.maxPlayers)
                         local Playing = tonumber(v.playing)
                         
-                        if Playing < (Max - 1) and ID ~= game.JobId then
+                        if Playing < (Max - 4) and ID ~= game.JobId then
                             local Possible = true
                             for _, Existing in pairs(AllIDs) do
                                 if ID == tostring(Existing) then Possible = false end
@@ -283,13 +283,12 @@ local function ServerHop()
                     StatusLbl.Text = "Re-scanning..."
                 end
             else
-                -- [UPDATE WATCHDOG COUNTER]
-                -- This part runs if the 'success' from pcall is false
-                getgenv().API_Error_Count = (getgenv().API_Error_Count or 0) + 1
-                
-                StatusLbl.Text = "API Busy (" .. getgenv().API_Error_Count .. "/6)..."
-                task_wait(2)
-            end
+              -- This line signals the watchdog at the bottom of the script
+              getgenv().API_Error_Count = (getgenv().API_Error_Count or 0) + 1
+    
+              StatusLbl.Text = "API Busy (" .. getgenv().API_Error_Count .. "/6)..."
+              task_wait(2)
+           end
         end
     end
     task_spawn(Scan)
