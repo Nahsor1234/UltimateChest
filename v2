@@ -345,10 +345,8 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 
 
 
-
-
--- // NAHSOR CHESTHUB V14.7 - CHUNK 3 //
--- [FIX: Swapped Render Button Logic]
+-- // NAHSOR CHESTHUB V14.9 - CHUNK 3 //
+-- [FIX: Fruit Name UI + SAVER Button + Syntax Repairs]
 
 task_spawn(function()
     task_wait(2) 
@@ -384,14 +382,30 @@ BlurFrame.Name, BlurFrame.Size, BlurFrame.BackgroundColor3, BlurFrame.Visible = 
 
 local function StoreFruit(fruit)
     if not fruit or not fruit:FindFirstChild("Handle") then return end
+    
+    -- [UPDATED LOGIC: Capture Name Immediately]
+    local fruitName = fruit.Name
+    if fruit:GetAttribute("OriginalName") then fruitName = fruit:GetAttribute("OriginalName") end
+    
+    -- Debug Print
+    print("[NahsorDebug] Detected Fruit: " .. tostring(fruitName))
+    
+    -- Update UI List Instantly
+    table.insert(CollectedFruits, fruitName)
+    if #CollectedFruits > 0 then
+        FruitLbl.Text = "Fruit: " .. table.concat(CollectedFruits, ", ")
+        FruitLbl.TextColor3 = Color3.fromRGB(0, 255, 255) -- Cyan Color
+    end
+    
     local OldCFrame = LP.Character.HumanoidRootPart.CFrame
     LP.Character.HumanoidRootPart.CFrame = fruit.Handle.CFrame
     task_wait(0.2)
     firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 0)
     firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 1)
+    
     local args = { [1] = "StoreFruit", [2] = fruit:GetAttribute("OriginalName") or fruit.Name, [3] = fruit }
     pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args)) end)
-    table.insert(CollectedFruits, fruit:GetAttribute("OriginalName") or fruit.Name)
+    
     task_wait(0.2)
     LP.Character.HumanoidRootPart.CFrame = OldCFrame
 end
@@ -424,6 +438,7 @@ local function MainFarm()
         for _, v in pairs(Workspace:GetChildren()) do
             if v:IsA("Tool") and string.find(v.Name, "Fruit") then 
                 StatusLbl.Text = "Snipping Fruit: " .. v.Name
+                StatusLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
                 StoreFruit(v) 
             end
         end
@@ -449,6 +464,7 @@ local function MainFarm()
     if target then
         IsMoving = true
         StatusLbl.Text = "Chest: " .. math_floor(minDist) .. "m"
+        StatusLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
         local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
         tween:Play()
         while tween.PlaybackState == Enum.PlaybackState.Playing do 
@@ -486,27 +502,27 @@ AFKBtn.MouseButton1Click:Connect(function()
     BlurFrame.Visible = IsAFK 
 end)
 
--- [FIXED: RENDER BUTTON LOGIC]
+-- [UPDATED: SAVER BUTTON LOGIC]
 RenderBtn.MouseButton1Click:Connect(function() 
     Config.Disable3DRender = not Config.Disable3DRender
     local State = Config.Disable3DRender
     
-    -- SWAPPED: If Disable=True (Black Screen), Text should be "3D: OFF"
-    -- If Disable=False (Visible), Text should be "3D: ON"
-    RenderBtn.Text = State and "3D: OFF" or "3D: ON"
-    RenderBtn.BackgroundColor3 = State and Color3.fromRGB(180, 40, 40) or Color3.fromRGB(40, 180, 40)
+    -- SAVER: ON (Green) = Feature Active (Black Screen)
+    -- SAVER: OFF (Red) = Feature Inactive (Visible Screen)
+    RenderBtn.Text = State and "SAVER: ON" or "SAVER: OFF"
+    RenderBtn.BackgroundColor3 = State and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
     
     pcall(function() RunService:Set3dRenderingEnabled(not State) end)
 end)
 
 -- [INIT: Check Initial State]
 if Config.Disable3DRender then
-    RenderBtn.Text = "3D: OFF"
-    RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    RenderBtn.Text = "SAVER: ON"
+    RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
     pcall(function() RunService:Set3dRenderingEnabled(false) end)
 else
-    RenderBtn.Text = "3D: ON"
-    RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
+    RenderBtn.Text = "SAVER: OFF"
+    RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
     pcall(function() RunService:Set3dRenderingEnabled(true) end)
 end
 
@@ -539,6 +555,7 @@ task.spawn(function()
     while task.wait(5) do
         local ping = math.floor(Network:GetValue())
         if ping > 2000 then
+            -- [FIXED SYNTAX ERROR HERE]
             FailCount = FailCount + 1
             StatusLbl.Text = "LAG FREEZE ("..FailCount.."/3)"
         else
@@ -553,3 +570,4 @@ task.spawn(function()
         end
     end
 end)
+
