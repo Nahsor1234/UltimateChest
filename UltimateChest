@@ -142,8 +142,9 @@ end)
 --48373737377383838838
 
 
+-- // NAHSOR CHESTHUB V14.4 - CHUNK 2 //
+-- [FIX: Fast Method Switch | Ultra Mode Logic]
 
--- // NAHSOR CHESTHUB V14.3 - CHUNK 2 //
 local function CheckRareItems()
     if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
     for _, item in pairs(RareItems) do
@@ -152,17 +153,17 @@ local function CheckRareItems()
     return false
 end
 
--- [NEW: METHOD 2 - BLIND HOP]
--- Used when API is busy. Does not use HTTP requests.
+-- [METHOD 2: BLIND HOP]
+-- Forces a jump without checking server lists. 0% chance of API Error.
 local function BlindHop()
-    StatusLbl.Text = "Method 2: Blind Hop..."
+    StatusLbl.Text = "API Bad. Blind Hopping..."
     StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
     
     if Config.Disable3DRender then
         pcall(function() RunService:Set3dRenderingEnabled(false) end)
     end
     
-    -- This forces Roblox to find ANY server. It ignores the server list.
+    -- This command lets Roblox matchmaker do the work
     TeleportService:Teleport(game.PlaceId, LP)
 end
 
@@ -202,13 +203,14 @@ local function ServerHop()
     local function Scan()
         local foundAnything = ""
         local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
-        local apiErrors = 0 -- Counter for API failures
+        local apiErrors = 0 
         
         while true do
-            -- [FAILSAFE] If API fails 5 times, switch to Method 2 immediately
-            if apiErrors >= 5 then
-                StatusLbl.Text = "API Broken. Swapping Method..."
-                task_wait(1)
+            -- [AGGRESSIVE FAILSAFE]
+            -- If API fails just TWICE, we stop trying and Force Hop.
+            if apiErrors >= 2 then
+                StatusLbl.Text = "Force Hopping..."
+                task_wait(0.5)
                 BlindHop() 
                 break 
             end
@@ -217,7 +219,7 @@ local function ServerHop()
             local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
             
             if success and result and result.data then
-                apiErrors = 0 -- Reset error count on success
+                apiErrors = 0 
                 for _, v in pairs(result.data) do
                     local ID = tostring(v.id)
                     if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
@@ -244,10 +246,10 @@ local function ServerHop()
                 end
                 if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else foundAnything = "" end
             else
-                -- [ERROR DETECTED]
+                -- [ERROR CAUGHT]
                 apiErrors = apiErrors + 1
-                StatusLbl.Text = "API Busy ("..apiErrors.."/5)..."
-                task_wait(1.5)
+                StatusLbl.Text = "API Busy ("..apiErrors.."/2)..."
+                task_wait(1.0)
             end
         end
     end
@@ -265,8 +267,8 @@ TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage
     if player == LP then 
         Hopping = false 
         RunService:Set3dRenderingEnabled(true)
-        task_wait(5)
-        ServerHop() 
+        -- If the specific server join failed, default to Blind Hop next
+        BlindHop()
     end
 end)
 
@@ -286,7 +288,7 @@ local function SendWebhook(item)
         pcall(function() currentBeli = LP.Data.Beli.Value end)
         local duration = os_time() - Stats.StartTime
         local timeString = string.format("%02d:%02d:%02d", math_floor(duration/3600), math_floor((duration%3600)/60), duration%60)
-        local data = {["embeds"] = {{["title"] = (item and item ~= "") and "🚨 RARE ITEM!" or "💰 SERVER REPORT", ["description"] = "**Player:** " .. LP.Name .. "\n**Time:** " .. timeString .. "\n**Chests:** " .. tostring(Stats.Chests) .. "\n**Money:** $" .. tostring(currentBeli - Stats.StartMoney) .. "\n**Fruit:** " .. (item or "None"), ["color"] = (item and item ~= "") and 16711680 or 65280, ["footer"] = { ["text"] = "Nahsor ChestHub V14.3" }}}}
+        local data = {["embeds"] = {{["title"] = (item and item ~= "") and "🚨 RARE ITEM!" or "💰 SERVER REPORT", ["description"] = "**Player:** " .. LP.Name .. "\n**Time:** " .. timeString .. "\n**Chests:** " .. tostring(Stats.Chests) .. "\n**Money:** $" .. tostring(currentBeli - Stats.StartMoney) .. "\n**Fruit:** " .. (item or "None"), ["color"] = (item and item ~= "") and 16711680 or 65280, ["footer"] = { ["text"] = "Nahsor ChestHub V14.4" }}}}
         pcall(function() request({Url = Config.WebhookURL, Body = HttpService:JSONEncode(data), Method = "POST", Headers = {["Content-Type"] = "application/json"}}) end)
     end)
 end
@@ -332,6 +334,7 @@ FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
 TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
 EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
 StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
+
 
 
 
