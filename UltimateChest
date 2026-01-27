@@ -1,14 +1,15 @@
--- // NAHSOR CHESTHUB V13.1 (STABLE RELEASE) //
--- [VERIFIED: Delta, Codex, Arceus, Fluxus]
+-- // NAHSOR CHESTHUB V14.0 //
+-- [STATUS: FINAL STABLE]
+-- [FEATURES: Universal No-Response Bypass | Rare Item Safety | GUI Safety Check]
 
--- [0] PRE-LOAD SAFEGUARDS
+-- // [BLOCK 0] PRE-LOAD SAFEGUARDS //
 if not game:IsLoaded() then game.Loaded:Wait() end
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
-repeat task.wait() until LP:FindFirstChild("PlayerGui")
+repeat task.wait() until game.Players.LocalPlayer
+repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
 
--- [1] SERVICES
+local game = game
 local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local TweenService = game:GetService("TweenService")
@@ -24,16 +25,22 @@ local task_wait, task_spawn = task.wait, task.spawn
 local math_floor, math_huge = math.floor, math.huge
 local os_time, os_date = os.time, os.date
 
--- [2] CONFIGURATION
+local LP = Players.LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
+
+-- // [BLOCK 1] CONFIGURATION //
 local Config = {
     WebhookURL = "https://discord.com/api/webhooks/1462804070728335370/Z2THKlk_RNm-R144EMLiLe9FTowNStytcgX5Vyprzb5LHTUqT3o72O-SVejkR_mcUure",
     TweenSpeed = 350,       
     CollectionWait = 0.05, 
-    AFKMode = true,
     
-    -- [GRAPHICS]
-    FastMode = true,        -- Custom User Fast Mode (Gray World)
-    UltraFastMode = false,  -- Potato Mode
+    -- [SAFETY & LIMITS]
+    MaxTime = 120,          -- Time in seconds before forcing a hop
+    Disable3DRender = true, -- Freezes screen on teleport to bypass "No Response" error
+    
+    AFKMode = true,
+    FastMode = true,        
+    UltraFastMode = false,  
     
     StopOnRareItem = true,
     AdminHop = true, 
@@ -50,7 +57,7 @@ pcall(function()
     end
 end)
 
--- [3] VARIABLES
+-- // [BLOCK 2] VARIABLES //
 local Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
 local ChestCache = {}
 local VisitedChests = {} 
@@ -60,34 +67,29 @@ local Farming, IsMoving, Hopping = true, false, false
 local LastMoveTime = os_time()
 local LastPos = Vector3.new(0,0,0)
 local RareItems = {"God's Chalice", "Fist of Darkness"}
+local LastCacheRefresh = 0
 
--- [4] ROBUST TEAM SELECT
+pcall(function() Stats.StartMoney = LP.Data.Beli.Value end)
+
+-- // [BLOCK 3] TEAM SELECT //
 task_spawn(function()
-    local TeamAttempts = 0
-    -- Wait for Remotes to actually exist
-    repeat task_wait(0.5) until ReplicatedStorage:FindFirstChild("Remotes")
-    
-    while TeamAttempts < 30 do
+    repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+    local attempts = 0
+    while attempts < 60 do 
         if LP.Team and LP.Team.Name == "Pirates" then break end
-        
-        pcall(function()
-            ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates")
-        end)
-        
-        TeamAttempts = TeamAttempts + 1
+        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
+        if LP.Team and LP.Team.Name == "Pirates" then break end
+        attempts = attempts + 1
         task_wait(1)
     end
 end)
 
--- [5] UTILITY FUNCTIONS
-
--- Anti-AFK
+-- // [BLOCK 4] UTILITY FUNCTIONS //
 LP.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new(0,0))
 end)
 
--- Draggable UI
 local function MakeDraggable(gui)
     local dragging, dragInput, dragStart, startPos
     local function update(input)
@@ -106,64 +108,40 @@ local function MakeDraggable(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- [GRAPHICS: USER CUSTOM FAST MODE]
+-- // [BLOCK 5] GRAPHICS & FPS BOOST //
 local function ApplyFastMode()
     if Config.UltraFastMode then return end
     if not Config.FastMode then return end
-    
-    -- Run in background to prevent freezing
-    task_spawn(function()
-        local L = game:GetService("Lighting")
-        L.GlobalShadows, L.FogEnd = false, 9e9
-        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
-        
-        local function Fastify(v)
-            if v:IsA("BasePart") then 
-                pcall(function() v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false end)
-            end
-            if v:IsA("Decal") or v:IsA("Texture") then 
-                pcall(function() v.Transparency = 1 end)
-            end
-        end
-        
-        for _,v in pairs(workspace:GetDescendants()) do Fastify(v) end
-        workspace.DescendantAdded:Connect(Fastify)
-    end)
+    local L = game:GetService("Lighting")
+    L.GlobalShadows, L.FogEnd = false, 9e9
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    local function Fastify(v)
+        if v:IsA("BasePart") then pcall(function() v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false end) end
+        if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 end
+    end
+    for _,v in pairs(workspace:GetDescendants()) do Fastify(v) end
+    workspace.DescendantAdded:Connect(Fastify)
 end
 
--- [GRAPHICS: POTATO MODE]
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
-    task_spawn(function()
-        pcall(function()
-            local L = game:GetService("Lighting")
-            L.GlobalShadows = false
-            L.FogEnd = 9e9
-            L.Brightness = 100
-            L.Ambient = Color3.new(1,1,1)
-            L.OutdoorAmbient = Color3.new(1,1,1)
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-            
-            for _,v in pairs(L:GetChildren()) do 
-                if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end 
-            end
-            
-            local function Clear(v)
-                if v:IsA("BasePart") then
-                    v.Material = Enum.Material.SmoothPlastic
-                    v.CastShadow = false
-                elseif v:IsA("Decal") or v:IsA("Texture") then
-                    v.Transparency = 1
-                elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") then
-                    v:Destroy()
-                elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then
-                    v:Destroy()
-                end
-            end
-            
-            for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
-            workspace.DescendantAdded:Connect(Clear)
-        end)
+    pcall(function()
+        local L = game:GetService("Lighting")
+        L.GlobalShadows = false
+        L.FogEnd = 9e9
+        L.Brightness = 0.4
+        L.Ambient = Color3.new(0,0,0)
+        L.OutdoorAmbient = Color3.new(0,0,0)
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        for _,v in pairs(L:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end end
+        local function Clear(v)
+            if v:IsA("BasePart") then v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false
+            elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") then v:Destroy()
+            elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then v:Destroy() end
+        end
+        for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
+        workspace.DescendantAdded:Connect(Clear)
     end)
 end
 
@@ -173,12 +151,10 @@ task_spawn(function()
     elseif Config.FastMode then ApplyFastMode() end
 end)
 
--- [SERVER HOP LOGIC]
+-- // [BLOCK 6] NORMAL SERVER HOP //
 local function CheckRareItems()
     for _, item in pairs(RareItems) do
-        if LP.Backpack:FindFirstChild(item) or LP.Character:FindFirstChild(item) then
-            return true
-        end
+        if LP.Backpack:FindFirstChild(item) or LP.Character:FindFirstChild(item) then return true end
     end
     return false
 end
@@ -188,27 +164,22 @@ local function ServerHop()
         StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
         StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
         warn("NAHSOR CHESTHUB: Rare Item Found. Stopping.")
-        Farming = false
-        Hopping = true
+        Farming, Hopping = false, true
         return
     end
 
     local function AreChestsLoaded()
-        local c1 = workspace:FindFirstChild("Chests")
-        local c2 = workspace:FindFirstChild("Chest")
+        local c1, c2 = workspace:FindFirstChild("Chests"), workspace:FindFirstChild("Chest")
         return (c1 and #c1:GetChildren() > 0) or (c2 and #c2:GetChildren() > 0)
     end
 
     if not AreChestsLoaded() then
-        StatusLbl.Text = "Waiting for game load (5s)..."
+        StatusLbl.Text = "Waiting for game load (3s)..."
         local timer = 0
-        while timer < 5 do
+        while timer < 3 do
             task_wait(1)
             timer = timer + 1
-            if AreChestsLoaded() then
-                StatusLbl.Text = "Game Loaded! Resuming..."
-                return 
-            end
+            if AreChestsLoaded() then StatusLbl.Text = "Game Loaded! Resuming..." return end
         end
     end
 
@@ -220,9 +191,7 @@ local function ServerHop()
     local AllIDs = {}
     local actualHour = os_date("!*t").hour
     
-    local File = pcall(function()
-        AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json"))
-    end)
+    local File = pcall(function() AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json")) end)
     if not File then
         table.insert(AllIDs, actualHour)
         pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
@@ -237,12 +206,9 @@ local function ServerHop()
         local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
         
         while true do
-            -- Safe delay: 0.35s prevents API errors but stays fast
             task_wait(0.35) 
-            
             local cursorUrl = url
             if foundAnything ~= "" then cursorUrl = url .. '&cursor=' .. foundAnything end
-            
             local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
             
             if success and result then
@@ -254,18 +220,28 @@ local function ServerHop()
                         
                         if Playing < (Max - 1) and ID ~= game.JobId then
                             local Possible = true
-                            for _, Existing in pairs(AllIDs) do
-                                if ID == tostring(Existing) then Possible = false end
-                            end
+                            for _, Existing in pairs(AllIDs) do if ID == tostring(Existing) then Possible = false end end
                             
                             if Possible then
                                 table.insert(AllIDs, ID)
                                 pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
                                 
                                 StatusLbl.Text = "Joining " .. Playing .. "/" .. Max .. "..."
+                                
+                                -- [BYPASS: FREEZE ENGINE FOR NORMAL HOP]
+                                if Config.Disable3DRender then
+                                    pcall(function() 
+                                        RunService:Set3dRenderingEnabled(false)
+                                        if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                                            LP.Character.HumanoidRootPart.Anchored = true
+                                        end
+                                    end)
+                                end
+                                
                                 TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
-                                task_wait(5)
+                                task_wait(10)
                                 StatusLbl.Text = "TP Failed! Retrying..."
+                                RunService:Set3dRenderingEnabled(true) -- Unfreeze if failed
                             end
                         end
                     end
@@ -287,15 +263,13 @@ local function ServerHop()
     task_spawn(Scan)
 end
 
--- [EVENTS: ANTI-ADMIN & ERRORS]
+-- // [BLOCK 7] EVENTS & WEBHOOK //
 Players.PlayerAdded:Connect(function(v)
     if Config.AdminHop then
         pcall(function()
-            -- Gamer Robot ID: 4372130, Rank > 20 is dangerous
             if v:IsInGroup(4372130) and v:GetRankInGroup(4372130) > 20 then
                 StatusLbl.Text = "ADMIN DETECTED! HOPPING..."
                 StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
-                warn("NAHSOR CHESTHUB: Admin joined. Hopping.")
                 Farming = false
                 ServerHop()
             end
@@ -307,6 +281,7 @@ TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage
     if player == LP then
         StatusLbl.Text = "TP Fail! New Hop..."
         Hopping = false 
+        RunService:Set3dRenderingEnabled(true) -- Safety Unfreeze
         ServerHop()     
     end
 end)
@@ -326,53 +301,24 @@ task_spawn(function()
     end)
 end)
 
--- Webhook
 local function SendWebhook(item)
     if Config.WebhookURL == "" or Config.WebhookURL:find("discord") == nil then return end
     task_spawn(function()
         local request = http_request or request or HttpPost or syn.request
         if not request then return end
-
         local currentBeli = 0
         pcall(function() currentBeli = LP.Data.Beli.Value end)
         local earned = currentBeli - Stats.StartMoney
         if earned < 0 then earned = 0 end
-        
         local duration = os_time() - Stats.StartTime
         local timeString = string.format("%02d:%02d:%02d", math_floor(duration/3600), math_floor((duration%3600)/60), duration%60)
-        local fruitText = (item and item ~= "") and item or "None"
-
-        local desc = "**Player:** " .. LP.Name .. "\n"
-        desc = desc .. "**Time:** " .. timeString .. "\n"
-        desc = desc .. "**Chests:** " .. tostring(Stats.Chests) .. "\n"
-        desc = desc .. "**Money:** $" .. tostring(earned) .. "\n"
-        desc = desc .. "**Total.Money:** $" .. tostring(currentBeli) .. "\n"
-        desc = desc .. "**Fruit:** " .. fruitText
-
-        local title = (item and item ~= "") and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT"
-        local color = (item and item ~= "") and 16711680 or 65280
-        
-        local data = {
-            ["embeds"] = {{
-                ["title"] = title,
-                ["description"] = desc,
-                ["color"] = color,
-                ["footer"] = { ["text"] = "Nahsor ChestHub V13.1" }
-            }}
-        }
-        
-        pcall(function()
-            request({
-                Url = Config.WebhookURL,
-                Body = HttpService:JSONEncode(data),
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"}
-            })
-        end)
+        local desc = "**Player:** " .. LP.Name .. "\n**Time:** " .. timeString .. "\n**Chests:** " .. tostring(Stats.Chests) .. "\n**Money:** $" .. tostring(earned) .. "\n**Fruit:** " .. ((item and item ~= "") and item or "None")
+        local data = {["embeds"] = {{["title"] = (item and item ~= "") and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT", ["description"] = desc, ["color"] = (item and item ~= "") and 16711680 or 65280, ["footer"] = { ["text"] = "Nahsor ChestHub V14.0" }}}}
+        pcall(function() request({Url = Config.WebhookURL, Body = HttpService:JSONEncode(data), Method = "POST", Headers = {["Content-Type"] = "application/json"}}) end)
     end)
 end
 
--- // [UI SETUP] //
+-- // [BLOCK 8] UI SETUP //
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ChestHub_Core"
 ScreenGui.IgnoreGuiInset = true 
@@ -400,18 +346,11 @@ Padding.PaddingLeft = UDim.new(0, 10)
 Padding.PaddingRight = UDim.new(0, 10)
 Padding.PaddingBottom = UDim.new(0, 10)
 
--- Global Labels
 local function Label(text, color, order)
     local l = Instance.new("TextLabel", MainFrame)
-    l.Text = text
-    l.TextColor3 = color or Color3.fromRGB(220, 220, 220)
-    l.BackgroundTransparency = 1
-    l.Size = UDim2.new(1,0,0,16)
-    l.Font = Enum.Font.GothamBold
-    l.TextSize = 12
-    l.TextXAlignment = Enum.TextXAlignment.Left
-    l.LayoutOrder = order
-    l.ZIndex = 11
+    l.Text, l.TextColor3, l.LayoutOrder = text, color or Color3.fromRGB(220, 220, 220), order
+    l.BackgroundTransparency, l.Size, l.Font, l.TextSize = 1, UDim2.new(1,0,0,16), Enum.Font.GothamBold, 12
+    l.TextXAlignment, l.ZIndex = Enum.TextXAlignment.Left, 11
     return l
 end
 
@@ -422,73 +361,34 @@ TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
 EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
 StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 
--- FIXED MONEY COUNTER (Robust)
 task_spawn(function()
-    local data = LP:WaitForChild("Data", 10)
-    if data then
-        local beli = data:WaitForChild("Beli", 10)
-        if beli then
-            Stats.StartMoney = beli.Value
-            beli.Changed:Connect(function()
-                EarnedLbl.Text = "Money: $"..(beli.Value - Stats.StartMoney)
-            end)
-        end
+    task_wait(2) 
+    if LP.Data and LP.Data:FindFirstChild("Beli") then
+        LP.Data.Beli.Changed:Connect(function() EarnedLbl.Text = "Money: $"..(LP.Data.Beli.Value - Stats.StartMoney) end)
     end
 end)
 
 local Divider = Instance.new("Frame", MainFrame)
-Divider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-Divider.BorderSizePixel = 0
-Divider.Size = UDim2.new(1, 0, 0, 1)
-Divider.LayoutOrder = 6
-Divider.ZIndex = 11
+Divider.BackgroundColor3, Divider.BorderSizePixel, Divider.Size, Divider.LayoutOrder, Divider.ZIndex = Color3.fromRGB(60, 60, 60), 0, UDim2.new(1, 0, 0, 1), 6, 11
 
 local BtnRow = Instance.new("Frame", MainFrame)
-BtnRow.BackgroundTransparency = 1
-BtnRow.Size = UDim2.new(1, 0, 0, 24)
-BtnRow.LayoutOrder = 7
-BtnRow.ZIndex = 11
+BtnRow.BackgroundTransparency, BtnRow.Size, BtnRow.LayoutOrder, BtnRow.ZIndex = 1, UDim2.new(1, 0, 0, 24), 7, 11
 
 local ToggleBtn = Instance.new("TextButton", BtnRow)
-ToggleBtn.Text = "ON"
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.Font = Enum.Font.GothamBlack
-ToggleBtn.TextSize = 11
-ToggleBtn.Size = UDim2.new(0.48, 0, 1, 0)
-ToggleBtn.ZIndex = 12
+ToggleBtn.Text, ToggleBtn.BackgroundColor3, ToggleBtn.Size, ToggleBtn.ZIndex = "ON", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), 12
 Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
 
 local HopBtn = Instance.new("TextButton", BtnRow)
-HopBtn.Text = "HOP"
-HopBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 220)
-HopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-HopBtn.Font = Enum.Font.GothamBlack
-HopBtn.TextSize = 11
-HopBtn.Size = UDim2.new(0.48, 0, 1, 0)
-HopBtn.Position = UDim2.new(0.52, 0, 0, 0)
-HopBtn.ZIndex = 12
+HopBtn.Text, HopBtn.BackgroundColor3, HopBtn.Size, HopBtn.Position, HopBtn.ZIndex = "HOP", Color3.fromRGB(40, 100, 220), UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0), 12
 Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 6)
 
 local AFKBtn = Instance.new("TextButton", MainFrame)
-AFKBtn.Text = Config.AFKMode and "AFK: ON" or "AFK: OFF"
-AFKBtn.BackgroundColor3 = Config.AFKMode and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
-AFKBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-AFKBtn.Font = Enum.Font.GothamBlack
-AFKBtn.TextSize = 11
-AFKBtn.Size = UDim2.new(1, 0, 0, 24)
-AFKBtn.LayoutOrder = 8
-AFKBtn.ZIndex = 12
+AFKBtn.Text, AFKBtn.BackgroundColor3, AFKBtn.Size, AFKBtn.LayoutOrder, AFKBtn.ZIndex = "AFK: ON", Color3.fromRGB(40, 180, 40), UDim2.new(1, 0, 0, 24), 8, 12
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
 
 local BlurFrame = Instance.new("Frame", ScreenGui)
-BlurFrame.Name = "AFKOverlay"
-BlurFrame.Size = UDim2.new(1, 0, 1, 0)
-BlurFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-BlurFrame.Visible = Config.AFKMode
-BlurFrame.ZIndex = 1
+BlurFrame.Name, BlurFrame.Size, BlurFrame.BackgroundColor3, BlurFrame.Visible = "AFKOverlay", UDim2.new(1,0,1,0), Color3.fromRGB(0,0,0), Config.AFKMode
 
--- Fruit Store
 local function StoreFruit(fruit)
     if not fruit then return end
     if fruit:FindFirstChild("Handle") then
@@ -498,13 +398,10 @@ local function StoreFruit(fruit)
         task_wait(0.5)
     end
     table.insert(CollectedFruits, fruit:GetAttribute("OriginalName") or fruit.Name)
-    FruitLbl.Text = "Fruit: " .. table.concat(CollectedFruits, ", ")
-    local args = { [1] = "StoreFruit", [2] = fruit:GetAttribute("OriginalName") or fruit.Name, [3] = fruit }
-    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args)) end)
+    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StoreFruit", fruit:GetAttribute("OriginalName") or fruit.Name, fruit) end)
 end
 
--- // [7] LOGIC //
-
+-- // [BLOCK 9] MAIN FARM LOGIC //
 local function UpdateCache()
     if os_time() - LastCacheRefresh < 1 then return end
     LastCacheRefresh = os_time()
@@ -529,20 +426,15 @@ local function CheckStuck(root)
     end
 end
 
--- [MAIN FARM LOOP] 
 local function MainFarm()
     if not Farming or Hopping then return end
-    
     local char = LP.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
     
-    -- [MODE A] CHEST FARMING
     if Config.FarmChests then
         CheckStuck(root)
         UpdateCache()
-        
-        -- Passive Fruit Sniping
         if Config.FarmFruit then
             for _, v in pairs(Workspace:GetChildren()) do
                 if v:IsA("Tool") and string.find(v.Name, "Fruit") then
@@ -551,45 +443,25 @@ local function MainFarm()
                 end
             end
         end
-        
         local target, minDist = nil, math_huge
         for _, v in pairs(ChestCache) do
-            if v and v.Parent then
+           if v and v.Parent then
                 local dist = (v.Position - root.Position).Magnitude
                 if dist < Config.MaxFarmDistance and not VisitedChests[v] then
                      local isDup = false
                      for _, pos in pairs(CollectedPositions) do
                          if (v.Position - pos).Magnitude < 4 then isDup = true break end
                      end
-                     if not isDup and dist < minDist then
-                         target = v
-                         minDist = dist
-                     end
+                     if not isDup and dist < minDist then target = v minDist = dist end
                 end
             end
         end
-        
-        if target then
-            IsMoving = true
-            StatusLbl.Text = "Traveling: " .. math_floor(minDist) .. "m"
-            local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
-            tween:Play()
-            while tween.PlaybackState == Enum.PlaybackState.Playing do
-                if not Farming then tween:Cancel() return end
-                task_wait(0.1)
-            end
-            if target.Parent then
+        if target.Parent then
                 StatusLbl.Text = "Collecting..."
                 root.CFrame = target.CFrame
-                
-                -- [SPEED FIX] INSTANT COLLECT
                 firetouchinterest(root, target, 0)
                 firetouchinterest(root, target, 1)
-                pcall(function() 
-                    local cd = target:FindFirstChildOfClass("ClickDetector")
-                    if cd then fireclickdetector(cd) end
-                end)
-                
+                pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
                 VisitedChests[target] = true
                 table.insert(CollectedPositions, target.Position)
                 Stats.Chests = Stats.Chests + 1
@@ -599,22 +471,14 @@ local function MainFarm()
             IsMoving = false
         else
             StatusLbl.Text = "Done! Hopping in 3s..."
-            
-            -- Webhook with fruit names
             local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
-            if Stats.Chests > 0 or fruits then 
-                SendWebhook(fruits) 
-            end
-            
+            if Stats.Chests > 0 or fruits then SendWebhook(fruits) end
             task_wait(3) 
             ServerHop()
         end
-
-    -- [MODE B] FRUIT ONLY
     elseif Config.FarmFruit then
         StatusLbl.Text = "Fruit Mode: Scanning..."
         local foundAny = false
-        
         for _, v in pairs(Workspace:GetChildren()) do
             if v:IsA("Tool") and string.find(v.Name, "Fruit") then
                 foundAny = true
@@ -625,22 +489,17 @@ local function MainFarm()
                 task_wait(0.5)
             end
         end
-        
         if foundAny then
              StatusLbl.Text = "Fruits Collected. Hopping..."
-             if Config.WebhookURL ~= "" then 
-                 SendWebhook(table.concat(CollectedFruits, ", ")) 
-             end
+             if Config.WebhookURL ~= "" then SendWebhook(table.concat(CollectedFruits, ", ")) end
         else
              StatusLbl.Text = "No Fruit Found. Hopping..."
         end
-        
         task_wait(2)
         ServerHop()
     end
 end
 
--- // [8] EVENTS & INIT //
 ToggleBtn.MouseButton1Click:Connect(function()
     Farming = not Farming
     ToggleBtn.Text = Farming and "ON" or "OFF"
@@ -648,35 +507,91 @@ ToggleBtn.MouseButton1Click:Connect(function()
     StatusLbl.Text = Farming and "Resuming..." or "Paused"
 end)
 
-HopBtn.MouseButton1Click:Connect(function()
-    Hopping = false 
-    ServerHop() 
-end)
+HopBtn.MouseButton1Click:Connect(function() Hopping = false ServerHop() end)
+AFKBtn.MouseButton1Click:Connect(function() local IsAFK = not BlurFrame.Visible AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF" AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) BlurFrame.Visible = IsAFK end)
 
-AFKBtn.MouseButton1Click:Connect(function()
-    local IsAFK = not BlurFrame.Visible
-    AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF"
-    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
-    BlurFrame.Visible = IsAFK
-end)
-
--- MAIN LOOP
 task_spawn(function()
     StatusLbl.Text = "Active"
     while true do
-        if Farming then 
-            local s, e = pcall(MainFarm) 
-            if not s then warn(e) end
-        end
+        if Farming then local s, e = pcall(MainFarm) if not s then warn(e) end end
         task_wait(0.1)
     end
 end)
 
--- TIMER LOOP
 task_spawn(function()
     while true do
         local s = os_time() - Stats.StartTime
         TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor(s/3600), math_floor((s%3600)/60), s%60)
         task_wait(1)
+    end
+end)
+
+-- // [BLOCK 10] FAILSAFE TIME-HOP GUARDIAN //
+-- [Universal Bypass: Safe Mode + No Response Fix]
+task.spawn(function()
+    local StartClock = os.time()
+    local HS = game:GetService("HttpService")
+    local TS = game:GetService("TeleportService")
+    local RS = game:GetService("RunService")
+
+    while task.wait(5) do
+        local elapsed = os.time() - StartClock
+        
+        -- [CHECK 1: IS GUI OFF?]
+        if not Farming then continue end -- Skip loop if paused
+        
+        -- [CHECK 2: DO WE HAVE RARE ITEMS?]
+        if Config.StopOnRareItem and CheckRareItems() then
+            StatusLbl.Text = "TIME LIMIT: SKIPPED (RARE ITEM)"
+            continue -- Skip hop
+        end
+
+        -- [CHECK 3: TIME LIMIT]
+        if Config and Config.MaxTime and elapsed >= Config.MaxTime then
+            
+            -- [EXECUTE BYPASS HOP]
+            Farming = false
+            Hopping = true
+            
+            pcall(function()
+                if StatusLbl then 
+                    StatusLbl.Text = "BYPASSING: FREEZING ENGINE..." 
+                    StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+                end
+                -- FREEZE ENGINE
+                RS:Set3dRenderingEnabled(false)
+                -- ANCHOR CHARACTER
+                if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                    LP.Character.HumanoidRootPart.Anchored = true
+                end
+            end)
+
+            -- Method A: Smart Search (Newest Servers)
+            local success, result = pcall(function()
+                return HS:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. game.PlaceId .. '/servers/Public?sortOrder=Desc&limit=100'))
+            end)
+
+            if success and result and result.data then
+                local serverList = result.data
+                for i = #serverList, 2, -1 do
+                    local j = math.random(i)
+                    serverList[i], serverList[j] = serverList[j], serverList[i]
+                end
+
+                for _, v in pairs(serverList) do
+                    if v.playing < (v.maxPlayers - 4) and tostring(v.id) ~= game.JobId then
+                        TS:TeleportToPlaceInstance(game.PlaceId, v.id, LP)
+                        task.wait(8)
+                    end
+                end
+            end
+
+            -- Method B: Emergency Fallback
+            pcall(function()
+                if StatusLbl then StatusLbl.Text = "EMERGENCY REJOIN..." end
+                TS:Teleport(game.PlaceId, LP)
+            end)
+            task.wait(10)
+        end
     end
 end)
