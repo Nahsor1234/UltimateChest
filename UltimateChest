@@ -195,7 +195,7 @@ local function ServerHop()
                 break
             end
 
-            task_wait(0.35) 
+            task_wait(0.5) 
             local cursorUrl = url .. (foundAnything ~= "" and '&cursor=' .. foundAnything or "")
             local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
             
