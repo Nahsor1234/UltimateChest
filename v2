@@ -1,6 +1,6 @@
-
 -- // NAHSOR CHESTHUB V14.6 - CHUNK 1 //
--- [NEW: Render Toggle Button Added]
+-- [UPDATED: Added File-Based Config Overwrite]
+
 if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait() until game.Players.LocalPlayer
 repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
@@ -25,12 +25,13 @@ local os_time, os_date = os.time, os.date
 local LP = Players.LocalPlayer
 local PlayerGui = LP:WaitForChild("PlayerGui")
 
+-- [1] DEFAULT CONFIGURATION
 local Config = {
     WebhookURL = "https://discord.com/api/webhooks/1462804070728335370/Z2THKlk_RNm-R144EMLiLe9FTowNStytcgX5Vyprzb5LHTUqT3o72O-SVejkR_mcUure",
     TweenSpeed = 350,       
     CollectionWait = 0.05, 
     MaxTime = 120,
-    Disable3DRender = true, -- Default setting (can be changed via UI now)
+    Disable3DRender = true, 
     AFKMode = true,
     FastMode = true,        
     UltraFastMode = false,
@@ -42,12 +43,33 @@ local Config = {
     MaxFarmDistance = 4000
 }
 
+-- [2] CONFIG OVERWRITE SYSTEM (READS THE FILE)
+local FileName = "NahsorConfig.json"
+if isfile(FileName) then
+    pcall(function()
+        local FileData = readfile(FileName)
+        local UserSettings = HttpService:JSONDecode(FileData)
+        
+        for Key, Value in pairs(UserSettings) do
+            -- Only overwrite if the setting exists in our defaults (Safety Check)
+            if Config[Key] ~= nil then
+                Config[Key] = Value
+            end
+        end
+        print("[NahsorConfig] Loaded Settings from File!")
+    end)
+else
+    print("[NahsorConfig] No file found. Using Defaults.")
+end
+
+-- [3] LEGACY OVERWRITE (Support for old getgenv method)
 pcall(function()
     if getgenv and getgenv().UserConfig then
         for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
     end
 end)
 
+-- [4] GLOBAL VARIABLES
 local Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
 local ChestCache = {}
 local VisitedChests = {} 
@@ -61,6 +83,7 @@ local LastCacheRefresh = 0
 
 pcall(function() Stats.StartMoney = LP.Data.Beli.Value end)
 
+-- [5] AUTO TEAM SELECT
 task_spawn(function()
     repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
     local attempts = 0
@@ -72,9 +95,12 @@ task_spawn(function()
     end
 end)
 
+-- [6] ANTI-AFK
 LP.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new(0,0))
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0,0))
+    end)
 end)
 
 local function MakeDraggable(gui)
@@ -95,6 +121,7 @@ local function MakeDraggable(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
+-- [7] FAST MODE
 local function ApplyFastMode()
     if Config.UltraFastMode then return end
     if not Config.FastMode then return end
@@ -109,6 +136,7 @@ local function ApplyFastMode()
     workspace.DescendantAdded:Connect(Fastify)
 end
 
+-- [8] ULTRA FAST MODE
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     pcall(function()
@@ -136,6 +164,7 @@ task_spawn(function()
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
 end)
+
 
 
 
