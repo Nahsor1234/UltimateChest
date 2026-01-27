@@ -42,8 +42,10 @@ local Config = {
     MaxFarmDistance = 4000
 }
 
+-- [FIXED CONFIG LOADER]
 pcall(function()
-    if getgenv().UserConfig then
+    -- We check 'if getgenv' first. If it doesn't exist, the script skips this part safely.
+    if getgenv and getgenv().UserConfig then
         for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
     end
 end)
@@ -141,8 +143,15 @@ end)
 
 -- // NAHSOR CHESTHUB V14.1 - CHUNK 2 //
 local function CheckRareItems()
+    -- CRASH FIX: Stop if character or backpack isn't loaded yet
+    if not LP or not LP.Character or not LP.Backpack then 
+        return false 
+    end
+
     for _, item in pairs(RareItems) do
-        if LP.Backpack:FindFirstChild(item) or LP.Character:FindFirstChild(item) then return true end
+        if LP.Backpack:FindFirstChild(item) or LP.Character:FindFirstChild(item) then 
+            return true 
+        end
     end
     return false
 end
