@@ -343,9 +343,8 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 
 
 
-
--- // NAHSOR CHESTHUB V14.6 - CHUNK 3 //
--- [NEW: Render Toggle Logic]
+-- // NAHSOR CHESTHUB V14.7 - CHUNK 3 //
+-- [FIX: Swapped Render Button Logic]
 
 task_spawn(function()
     task_wait(2) 
@@ -372,9 +371,8 @@ local AFKBtn = Instance.new("TextButton", ExtraRow)
 AFKBtn.Text, AFKBtn.BackgroundColor3, AFKBtn.Size, AFKBtn.ZIndex = "AFK", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), 12
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
 
--- [NEW BUTTON: RENDER]
 local RenderBtn = Instance.new("TextButton", ExtraRow)
-RenderBtn.Text, RenderBtn.BackgroundColor3, RenderBtn.Size, RenderBtn.Position, RenderBtn.ZIndex = "3D: OFF", Color3.fromRGB(180, 40, 40), UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0), 12
+RenderBtn.Size, RenderBtn.Position, RenderBtn.ZIndex = UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0), 12
 Instance.new("UICorner", RenderBtn).CornerRadius = UDim.new(0, 6)
 
 local BlurFrame = Instance.new("Frame", ScreenGui)
@@ -416,6 +414,8 @@ local function MainFarm()
     if not root then return end
     
     UpdateCache()
+    
+    -- [1] FRUIT CHECK
     if Config.FarmFruit then
         for _, v in pairs(Workspace:GetChildren()) do
             if v:IsA("Tool") and string.find(v.Name, "Fruit") then 
@@ -426,6 +426,8 @@ local function MainFarm()
     end
 
     local target, minDist = nil, math_huge
+
+    -- [2] CHEST CHECK
     if Config.FarmChests then
         for _, v in pairs(ChestCache) do
             if v and v.Parent then
@@ -439,6 +441,7 @@ local function MainFarm()
         end
     end
 
+    -- [3] EXECUTE ACTION
     if target then
         IsMoving = true
         StatusLbl.Text = "Chest: " .. math_floor(minDist) .. "m"
@@ -472,21 +475,23 @@ end
 ToggleBtn.MouseButton1Click:Connect(function() Farming = not Farming ToggleBtn.Text = Farming and "ON" or "OFF" ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
 HopBtn.MouseButton1Click:Connect(function() Hopping = false ServerHop() end)
 
--- [NEW LOGIC: AFK Button]
+-- [AFK Button Logic]
 AFKBtn.MouseButton1Click:Connect(function() 
     local IsAFK = not BlurFrame.Visible 
     AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) 
     BlurFrame.Visible = IsAFK 
 end)
 
--- [NEW LOGIC: Render Button]
+-- [FIXED: RENDER BUTTON LOGIC]
 RenderBtn.MouseButton1Click:Connect(function() 
     Config.Disable3DRender = not Config.Disable3DRender
     local State = Config.Disable3DRender
+    
+    -- SWAPPED: If Disable=True (Black Screen), Text should be "3D: OFF"
+    -- If Disable=False (Visible), Text should be "3D: ON"
     RenderBtn.Text = State and "3D: OFF" or "3D: ON"
     RenderBtn.BackgroundColor3 = State and Color3.fromRGB(180, 40, 40) or Color3.fromRGB(40, 180, 40)
     
-    -- Apply immediately
     pcall(function() RunService:Set3dRenderingEnabled(not State) end)
 end)
 
@@ -523,7 +528,6 @@ task.spawn(function()
     end
 end)
 
--- [NEW: NO-RESPONSE FAILSAFE]
 task.spawn(function()
     local Stats = game:GetService("Stats")
     local Network = Stats.Network.ServerStatsItem["Data Ping"]
