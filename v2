@@ -1,3 +1,191 @@
+-- // NAHSOR CONFIG MANAGER V9 [PERFECTED LAYOUT] //
+-- [Features: Right-Side Inputs | Grouped Order | Sleek UI]
+
+local Players = game:GetService("Players")
+local Http = game:GetService("HttpService")
+local Input = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LP = Players.LocalPlayer
+local FileName = "NahsorConfig.json"
+
+-- [1] DEFAULT CONFIG
+local Config = {
+    Disable3DRender = true, AFKMode = true, FastMode = true, UltraFastMode = false,
+    FarmChests = true, StopOnRareItem = true,
+    MaxTime = 120, TweenSpeed = 350, MaxFarmDistance = 4000, HopDelay = 8,
+    FPSLimit = 60
+}
+
+-- [2] SAVE/LOAD
+local function Save() pcall(function() writefile(FileName, Http:JSONEncode(Config)) end) end
+if isfile(FileName) then pcall(function() local d = Http:JSONDecode(readfile(FileName)) for k,v in pairs(d) do Config[k]=v end end) end
+
+-- [3] UI SETUP
+local GuiName = "NahsorConfig_V9"
+pcall(function() if LP.PlayerGui:FindFirstChild(GuiName) then LP.PlayerGui[GuiName]:Destroy() end end)
+local Gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui")); Gui.Name = GuiName
+
+local function Create(cls, props) local inst = Instance.new(cls); for k,v in pairs(props) do inst[k] = v end; return inst end
+local function Tween(obj, props, time, style, dir)
+    TweenService:Create(obj, TweenInfo.new(time or 0.3, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out), props):Play()
+end
+
+-- [4] FLOATING BUTTON
+local OpenBtn = Create("TextButton", {
+    Parent=Gui, Size=UDim2.new(0,40,0,40), Position=UDim2.new(0.05,0,0.4,0),
+    BackgroundColor3=Color3.fromRGB(18,18,18), Text="⚙", TextSize=22,
+    TextColor3=Color3.fromRGB(240,240,240), AutoButtonColor=false, Font=Enum.Font.GothamBold
+})
+Create("UICorner", {Parent=OpenBtn, CornerRadius=UDim.new(0,10)})
+Create("UIStroke", {Parent=OpenBtn, Color=Color3.fromRGB(60,60,60), Thickness=1.5})
+
+-- Drag Logic
+local drag, startPos
+OpenBtn.InputBegan:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then
+        drag=i.Position; startPos=OpenBtn.Position
+        Tween(OpenBtn, {BackgroundColor3=Color3.fromRGB(40,40,40)}, 0.2)
+        i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then drag=nil; Tween(OpenBtn, {BackgroundColor3=Color3.fromRGB(18,18,18)}, 0.2) end end)
+    end
+end)
+Input.InputChanged:Connect(function(i)
+    if (i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseMovement) and drag then
+        local d=i.Position-drag; local t = UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y)
+        TweenService:Create(OpenBtn, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {Position=t}):Play()
+    end
+end)
+
+-- [5] MAIN MENU
+local Main = Create("Frame", {
+    Parent=Gui, Visible=false, Size=UDim2.new(0,280,0,380),
+    Position=UDim2.new(0.5,0,0.5,0), AnchorPoint=Vector2.new(0.5,0.5),
+    BackgroundColor3=Color3.fromRGB(12,12,12), BackgroundTransparency=0, ClipsDescendants=true
+})
+Create("UICorner", {Parent=Main, CornerRadius=UDim.new(0,10)})
+Create("UIStroke", {Parent=Main, Color=Color3.fromRGB(40,40,40), Thickness=1})
+
+-- Header
+local Header = Create("Frame", {Parent=Main, Size=UDim2.new(1,0,0,40), BackgroundColor3=Color3.fromRGB(18,18,18), BorderSizePixel=0})
+Create("TextLabel", {
+    Parent=Header, Size=UDim2.new(1,-15,1,0), Position=UDim2.new(0,15,0,0), BackgroundTransparency=1,
+    Text="NAHSOR CONFIG", TextColor3=Color3.fromRGB(255,255,255), TextSize=13, Font=Enum.Font.GothamBold, TextXAlignment=Enum.TextXAlignment.Left
+})
+Create("Frame", {Parent=Header, Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,-1), BackgroundColor3=Color3.fromRGB(0,255,200), BorderSizePixel=0})
+
+-- Footer
+local Footer = Create("Frame", {
+    Parent=Main, Size=UDim2.new(1,0,0,45), Position=UDim2.new(0,0,1,-45),
+    BackgroundColor3=Color3.fromRGB(18,18,18), BorderSizePixel=0
+})
+Create("Frame", {Parent=Footer, Size=UDim2.new(1,0,0,1), BackgroundColor3=Color3.fromRGB(35,35,35), BorderSizePixel=0})
+local DescLbl = Create("TextLabel", {
+    Parent=Footer, Size=UDim2.new(1,-20,1,-4), Position=UDim2.new(0,10,0,4),
+    BackgroundTransparency=1, Text="Tap [?] to see what a setting does.",
+    TextColor3=Color3.fromRGB(120,120,120), TextSize=11, Font=Enum.Font.Gotham, 
+    TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top
+})
+
+-- Scroll
+local Scroll = Create("ScrollingFrame", {
+    Parent=Main, Size=UDim2.new(1,0,1,-85), Position=UDim2.new(0,0,0,40),
+    BackgroundTransparency=1, ScrollBarThickness=2, CanvasSize=UDim2.new(0,0,0,0), ScrollBarImageColor3=Color3.fromRGB(80,80,80)
+})
+local List = Create("UIListLayout", {Parent=Scroll, Padding=UDim.new(0,0), SortOrder=Enum.SortOrder.LayoutOrder})
+List:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() Scroll.CanvasSize = UDim2.new(0,0,0,List.AbsoluteContentSize.Y) end)
+
+-- [6] OPTION GENERATOR
+local function AddOption(name, key, type, info)
+    local Row = Create("Frame", {Parent=Scroll, Size=UDim2.new(1,0,0,40), BackgroundTransparency=1})
+    Create("Frame", {Parent=Row, Size=UDim2.new(1,-20,0,1), Position=UDim2.new(0,10,1,-1), BackgroundColor3=Color3.fromRGB(25,25,25), BorderSizePixel=0})
+    
+    -- Label
+    Create("TextLabel", {
+        Parent=Row, Size=UDim2.new(0.6,0,1,0), Position=UDim2.new(0,15,0,0), BackgroundTransparency=1,
+        Text=name, TextColor3=Color3.fromRGB(200,200,200), TextSize=12, Font=Enum.Font.GothamMedium, TextXAlignment=Enum.TextXAlignment.Left
+    })
+    
+    -- [?] Info Button (Positioned exactly right of the Text)
+    local InfoBtn = Create("TextButton", {
+        Parent=Row, Size=UDim2.new(0,20,0,20), Position=UDim2.new(0,140,0.5,-10),
+        BackgroundTransparency=1, Text="?", TextColor3=Color3.fromRGB(80,80,80), TextSize=12, Font=Enum.Font.GothamBold
+    })
+    InfoBtn.MouseButton1Click:Connect(function() DescLbl.Text = info; Tween(DescLbl, {TextColor3=Color3.fromRGB(255,255,255)}, 0.2); task.wait(0.3); Tween(DescLbl, {TextColor3=Color3.fromRGB(120,120,120)}, 0.5) end)
+
+    if type == "Bool" then
+        local ToggleBg = Create("TextButton", {
+            Parent=Row, Size=UDim2.new(0,36,0,18), Position=UDim2.new(1,-50,0.5,-9),
+            AutoButtonColor=false, Text="", BackgroundColor3=Color3.fromRGB(40,40,40)
+        })
+        Create("UICorner", {Parent=ToggleBg, CornerRadius=UDim.new(1,0)})
+        local Circle = Create("Frame", {
+            Parent=ToggleBg, Size=UDim2.new(0,14,0,14), Position=UDim2.new(0,2,0.5,-7),
+            BackgroundColor3=Color3.fromRGB(255,255,255)
+        })
+        Create("UICorner", {Parent=Circle, CornerRadius=UDim.new(1,0)})
+        
+        local function Update()
+            local on = Config[key]
+            if on then
+                Tween(ToggleBg, {BackgroundColor3=Color3.fromRGB(0,255,200)}, 0.2)
+                Tween(Circle, {Position=UDim2.new(1,-16,0.5,-7)}, 0.2, Enum.EasingStyle.Back)
+            else
+                Tween(ToggleBg, {BackgroundColor3=Color3.fromRGB(40,40,40)}, 0.2)
+                Tween(Circle, {Position=UDim2.new(0,2,0.5,-7)}, 0.2, Enum.EasingStyle.Back)
+            end
+        end
+        ToggleBg.MouseButton1Click:Connect(function() Config[key] = not Config[key]; Update(); Save() end); Update()
+        
+    else
+        -- [RIGHT SIDE INPUT] (Restored V6 Layout)
+        local Box = Create("TextBox", {
+            Parent=Row, Size=UDim2.new(0,50,0,24), Position=UDim2.new(1,-65,0.5,-12),
+            BackgroundColor3=Color3.fromRGB(20,20,20), TextColor3=Color3.fromRGB(0,255,200),
+            Text=tostring(Config[key]), Font=Enum.Font.GothamBold, TextSize=12
+        })
+        Create("UICorner", {Parent=Box, CornerRadius=UDim.new(0,4)})
+        Create("UIStroke", {Parent=Box, Color=Color3.fromRGB(50,50,50), Thickness=1})
+        
+        Box.FocusLost:Connect(function() 
+            local n = tonumber(Box.Text)
+            if n then Config[key]=n; Save(); if key == "FPSLimit" and setfpscap then setfpscap(n) end else Box.Text=tostring(Config[key]) end 
+        end)
+    end
+end
+
+-- [7] MENU ITEMS (Grouped: Toggles Top, Numbers Bottom)
+AddOption("Farm Chests", "FarmChests", "Bool", "Auto-collects treasure chests.")
+AddOption("3D Saver", "Disable3DRender", "Bool", "Turns screen black to save battery.")
+AddOption("AFK Overlay", "AFKMode", "Bool", "Black overlay to prevent burn-in.")
+AddOption("Fast Mode", "FastMode", "Bool", "Reduces texture quality.")
+AddOption("Ultra Fast", "UltraFastMode", "Bool", "Deletes map (Void Mode).")
+AddOption("Stop on Rare", "StopOnRareItem", "Bool", "Stops hopping if God's Chalice found.")
+
+-- Numbers Section (Inputs)
+AddOption("Time Limit", "MaxTime", "Num", "Force hop after X seconds.")
+AddOption("Tween Speed", "TweenSpeed", "Num", "Flight Speed (Higher = Slower).")
+AddOption("Max Dist", "MaxFarmDistance", "Num", "Scan range for chests.")
+AddOption("Hop Delay", "HopDelay", "Num", "Seconds wait before hop.")
+AddOption("FPS Limit", "FPSLimit", "Num", "Locks FPS (e.g. 15, 30, 60).")
+
+-- [8] ANIMATION
+local isOpen = false
+Main.Size = UDim2.new(0,260,0,380) 
+OpenBtn.MouseButton1Click:Connect(function()
+    isOpen = not isOpen
+    if isOpen then
+        Main.Visible = true; Main.Size = UDim2.new(0,260,0,380); Main.BackgroundTransparency = 1
+        Tween(Main, {Size=UDim2.new(0,280,0,400), BackgroundTransparency=0}, 0.35, Enum.EasingStyle.Back)
+        for _,v in pairs(Main:GetDescendants()) do if v:IsA("TextLabel") or v:IsA("TextBox") then v.TextTransparency=1; Tween(v, {TextTransparency=0}, 0.2) end end
+    else
+        Tween(Main, {Size=UDim2.new(0,260,0,380), BackgroundTransparency=1}, 0.2)
+        for _,v in pairs(Main:GetDescendants()) do if v:IsA("TextLabel") or v:IsA("TextBox") then Tween(v, {TextTransparency=1}, 0.1) end end
+        task.wait(0.2); Main.Visible = false
+    end
+end)
+
+
+
+
 -- // NAHSOR CHESTHUB V14.6 - CHUNK 1 //
 -- [UPDATED: Added File-Based Config Overwrite]
 
