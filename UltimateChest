@@ -342,7 +342,9 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 
 
 
--- // NAHSOR CHESTHUB V14.3 - CHUNK 3 //
+-- // NAHSOR CHESTHUB V14.5 - CHUNK 3 //
+-- [FIX: Fruit Only Mode | Logic Separation]
+
 task_spawn(function()
     task_wait(2) 
     if LP.Data and LP.Data:FindFirstChild("Beli") then
@@ -369,9 +371,10 @@ BlurFrame.Name, BlurFrame.Size, BlurFrame.BackgroundColor3, BlurFrame.Visible = 
 local function StoreFruit(fruit)
     if not fruit or not fruit:FindFirstChild("Handle") then return end
     
-    -- [FEATURE] Save Position before going to fruit
+    -- Save Position
     local OldCFrame = LP.Character.HumanoidRootPart.CFrame
     
+    -- Bypass TP
     LP.Character.HumanoidRootPart.CFrame = fruit.Handle.CFrame
     task_wait(0.2)
     firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 0)
@@ -381,7 +384,7 @@ local function StoreFruit(fruit)
     pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args)) end)
     table.insert(CollectedFruits, fruit:GetAttribute("OriginalName") or fruit.Name)
     
-    -- [FEATURE] Return to Farming Spot
+    -- Return
     task_wait(0.2)
     LP.Character.HumanoidRootPart.CFrame = OldCFrame
 end
@@ -408,25 +411,36 @@ local function MainFarm()
     if not root then return end
     
     UpdateCache()
+    
+    -- [1] FRUIT CHECK (Independent)
     if Config.FarmFruit then
         for _, v in pairs(Workspace:GetChildren()) do
-            if v:IsA("Tool") and string.find(v.Name, "Fruit") then StoreFruit(v) end
-        end
-    end
-
-    local target, minDist = nil, math_huge
-    for _, v in pairs(ChestCache) do
-        if v and v.Parent then
-            local dist = (v.Position - root.Position).Magnitude
-            if dist < Config.MaxFarmDistance and not VisitedChests[v] then
-                local isDup = false
-                for _, pos in pairs(CollectedPositions) do if (v.Position - pos).Magnitude < 5 then isDup = true break end end
-                if not isDup and dist < minDist then target = v minDist = dist end
+            if v:IsA("Tool") and string.find(v.Name, "Fruit") then 
+                StatusLbl.Text = "Snipping Fruit: " .. v.Name
+                StoreFruit(v) 
             end
         end
     end
 
+    local target, minDist = nil, math_huge
+
+    -- [2] CHEST CHECK (Only if Enabled)
+    if Config.FarmChests then
+        for _, v in pairs(ChestCache) do
+            if v and v.Parent then
+                local dist = (v.Position - root.Position).Magnitude
+                if dist < Config.MaxFarmDistance and not VisitedChests[v] then
+                    local isDup = false
+                    for _, pos in pairs(CollectedPositions) do if (v.Position - pos).Magnitude < 5 then isDup = true break end end
+                    if not isDup and dist < minDist then target = v minDist = dist end
+                end
+            end
+        end
+    end
+
+    -- [3] EXECUTE ACTION
     if target then
+        -- Farming Chest
         IsMoving = true
         StatusLbl.Text = "Chest: " .. math_floor(minDist) .. "m"
         local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
@@ -447,10 +461,14 @@ local function MainFarm()
         end
         IsMoving = false
     else
-        StatusLbl.Text = "All Collected! Hopping..."
+        -- No Chests OR FarmChests is False -> HOP
+        StatusLbl.Text = "Finished! Hopping..."
         local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
         if Stats.Chests > 0 or fruits then SendWebhook(fruits) end
-        task_wait(2) 
+        
+        -- If Fruit Only mode, hop faster (1s). If Chest mode finished, wait standard time (3s).
+        local waitTime = Config.FarmChests and 3 or 1
+        task_wait(waitTime) 
         ServerHop()
     end
 end
@@ -476,7 +494,6 @@ task.spawn(function()
             if s and r and r.data then
                 for _, v in pairs(r.data) do if v.playing < (v.maxPlayers - 2) and tostring(v.id) ~= game.JobId then TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, LP) task.wait(10) end end
             end
-            -- If the scan above fails, this fallback Teleport will execute (Dual Hop for Time Limit too)
             TeleportService:Teleport(game.PlaceId, LP)
             task.wait(10)
         end
