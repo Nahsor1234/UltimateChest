@@ -1,5 +1,5 @@
--- // NAHSOR CHESTHUB V14.10 - CHUNK 1 //
--- [INTEGRATED: Config Manager V3 + Variables + Setup]
+-- // NAHSOR CHESTHUB V14.11 - CHUNK 1 //
+-- [FIX: Config UI + Variables Shared Correctly]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 local Players = game:GetService("Players")
@@ -12,44 +12,52 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 
--- [1] CONFIG MANAGER V3 SETUP
-local FileName = "NahsorConfig_v1.json"
-
--- Default Settings
+-- [1] GLOBAL CONFIG SETUP (Must be global for Chunk 2 & 3)
 getgenv().Config = {
     Disable3DRender = true, 
     AFKMode = true, 
     FastMode = true, 
     UltraFastMode = false,
     FarmChests = true, 
-    FarmFruit = true,     -- Hardcoded ON
+    FarmFruit = true,
     StopOnRareItem = true,
     MaxTime = 120, 
     TweenSpeed = 350, 
     MaxFarmDistance = 4000, 
     HopDelay = 8,
-    WebhookURL = "" -- Hidden but exists
+    WebhookURL = ""
 }
 
--- Load from File (Overrides defaults if file exists)
+local FileName = "NahsorConfig_v1.json"
+
+-- [2] LOAD SAVED SETTINGS (Immediate)
 if isfile(FileName) then 
     pcall(function() 
         local d = HttpService:JSONDecode(readfile(FileName)) 
-        for k,v in pairs(d) do getgenv().Config[k]=v end 
+        for k,v in pairs(d) do 
+            if getgenv().Config[k] ~= nil then
+                getgenv().Config[k] = v 
+            end
+        end 
     end) 
 end
 
--- Save Function
+-- Share Config with the rest of the script
+Config = getgenv().Config 
+
 local function SaveConfig() 
     pcall(function() writefile(FileName, HttpService:JSONEncode(getgenv().Config)) end) 
 end
 
--- [2] CONFIG UI BUILDER
+-- [3] UI BUILDER (Runs in background, doesn't stop farming)
 task.spawn(function()
-    local Gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui")); Gui.Name = "NahsorConfig_UI"
+    local Gui = Instance.new("ScreenGui"); Gui.Name = "NahsorConfig_UI"
+    pcall(function() if LP.PlayerGui:FindFirstChild("NahsorConfig_UI") then LP.PlayerGui.NahsorConfig_UI:Destroy() end end)
+    Gui.Parent = LP:WaitForChild("PlayerGui")
+
     local function Create(cls, props) local inst = Instance.new(cls); for k,v in pairs(props) do inst[k] = v end; return inst end
 
-    -- FLOATING GEAR BUTTON
+    -- FLOATING BUTTON
     local OpenBtn = Create("TextButton", {Parent=Gui, Size=UDim2.new(0,45,0,45), Position=UDim2.new(0.05,0,0.3,0), BackgroundColor3=Color3.fromRGB(35,35,35), Text="⚙", TextSize=24, TextColor3=Color3.fromRGB(255,255,255), AutoButtonColor=false})
     Create("UICorner", {Parent=OpenBtn, CornerRadius=UDim.new(1,0)})
     Create("UIStroke", {Parent=OpenBtn, Color=Color3.fromRGB(0,255,255), Thickness=2})
@@ -73,7 +81,7 @@ task.spawn(function()
     local List = Create("UIListLayout", {Parent=Scroll, Padding=UDim.new(0,5), SortOrder=Enum.SortOrder.LayoutOrder})
     List:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() Scroll.CanvasSize = UDim2.new(0,0,0,List.AbsoluteContentSize.Y+10) end)
 
-    -- GENERATOR FUNCTION
+    -- OPTION GENERATOR
     local function AddOption(name, key, type, info)
         local Row = Create("Frame", {Parent=Scroll, Size=UDim2.new(1,-6,0,38), BackgroundColor3=Color3.fromRGB(35,35,35)})
         Create("UICorner", {Parent=Row, CornerRadius=UDim.new(0,6)})
@@ -93,24 +101,23 @@ task.spawn(function()
             local Box = Create("TextBox", {Parent=Row, Size=UDim2.new(0,50,0,22), Position=UDim2.new(1,-55,0,8), BackgroundColor3=Color3.fromRGB(20,20,20), TextColor3=Color3.fromRGB(255,255,255), Text=tostring(Config[key]), Font=Enum.Font.Gotham})
             Create("UICorner", {Parent=Box, CornerRadius=UDim.new(0,4)})
             
-            -- [INPUT PROTECTION]
             Box.FocusLost:Connect(function() 
                 local n = tonumber(Box.Text); 
                 if n then 
                     Config[key]=n; SaveConfig() 
                 else 
-                    Box.Text=tostring(Config[key]) -- Revert to old value if user typed letters
+                    Box.Text=tostring(Config[key]) 
                 end 
             end)
         end
     end
 
-    -- POPULATE OPTIONS
+    -- POPULATE MENU
     AddOption("Farm Chests", "FarmChests", "Bool", "Main Feature: Collects chests.")
-    AddOption("3D Saver", "Disable3DRender", "Bool", "Stops GPU Rendering. Recommended for Mobile.")
+    AddOption("3D Saver", "Disable3DRender", "Bool", "Stops GPU Rendering. Highly Recommended.")
     AddOption("AFK Overlay", "AFKMode", "Bool", "Black screen on start to save battery.")
     AddOption("Fast Mode", "FastMode", "Bool", "Lowers texture quality.")
-    AddOption("Ultra Fast", "UltraFastMode", "Bool", "Deletes Map. High FPS, but you float in void.")
+    AddOption("Ultra Fast", "UltraFastMode", "Bool", "Deletes Map (Void Mode).")
     AddOption("Stop on Rare", "StopOnRareItem", "Bool", "Stops hopping if God's Chalice found.")
     AddOption("Time Limit (s)", "MaxTime", "Num", "Force hop after X seconds.")
     AddOption("Tween Speed", "TweenSpeed", "Num", "Flight Speed (Higher = Slower).")
@@ -120,7 +127,7 @@ task.spawn(function()
     OpenBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 end)
 
--- [3] SCRIPT VARIABLES
+-- [4] GLOBAL VARIABLES (Shared with Chunk 2 & 3)
 getgenv().Stats = { Chests = 0, StartMoney = 0, StartTime = os.time() }
 getgenv().ChestCache = {}
 getgenv().VisitedChests = {} 
@@ -134,10 +141,19 @@ getgenv().LastPos = Vector3.new(0,0,0)
 getgenv().RareItems = {"God's Chalice", "Fist of Darkness"}
 getgenv().LastCacheRefresh = 0
 
--- [4] SETUP FUNCTIONS
+-- Expose global vars to local scope for Chunk 2/3 compatibility
+Stats = getgenv().Stats
+ChestCache = getgenv().ChestCache
+VisitedChests = getgenv().VisitedChests
+CollectedPositions = getgenv().CollectedPositions
+CollectedFruits = getgenv().CollectedFruits
+Farming = getgenv().Farming
+Hopping = getgenv().Hopping
+RareItems = getgenv().RareItems
+
+-- [5] INITIALIZATION (Auto-Start)
 pcall(function() Stats.StartMoney = LP.Data.Beli.Value end)
 
--- Team Select
 task.spawn(function()
     repeat task.wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
     local attempts = 0
@@ -149,13 +165,11 @@ task.spawn(function()
     end
 end)
 
--- Anti-AFK
 LP.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new(0,0))
 end)
 
--- UI Dragger Helper
 getgenv().MakeDraggable = function(gui)
     local dragging, dragInput, dragStart, startPos
     local function update(input)
@@ -172,7 +186,6 @@ getgenv().MakeDraggable = function(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- Optimization Functions
 local function ApplyFastMode()
     if Config.UltraFastMode then return end
     if not Config.FastMode then return end
@@ -194,7 +207,7 @@ local function ApplyUltraFastMode()
         L.Brightness = 0.4
         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
         for _,v in pairs(L:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end end
-        workspace.Terrain:Clear() -- Void Mode
+        workspace.Terrain:Clear() 
         for _,v in pairs(workspace:GetDescendants()) do 
             if v:IsA("BasePart") then v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false end
             if v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then v:Destroy() end
@@ -207,7 +220,6 @@ task.spawn(function()
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
 end)
-
 
 
 
