@@ -1,5 +1,5 @@
--- // NAHSOR CHESTHUB V14.11 - CHUNK 1 //
--- [FIX: Config UI + Variables Shared Correctly]
+-- // NAHSOR CHESTHUB V14.12 - CHUNK 1 //
+-- [FEATURES: Instant Start + Config UI + Next-Server Apply]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 local Players = game:GetService("Players")
@@ -10,9 +10,9 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CoreGui = game:GetService("CoreGui")
 
--- [1] GLOBAL CONFIG SETUP (Must be global for Chunk 2 & 3)
+-- [1] INITIALIZE CONFIG (Global)
+-- This ensures Chunk 2 & 3 can see the settings immediately.
 getgenv().Config = {
     Disable3DRender = true, 
     AFKMode = true, 
@@ -30,7 +30,8 @@ getgenv().Config = {
 
 local FileName = "NahsorConfig_v1.json"
 
--- [2] LOAD SAVED SETTINGS (Immediate)
+-- [2] LOAD SAVED SETTINGS (Synchronous)
+-- We do this BEFORE anything else so the farm starts with the correct settings.
 if isfile(FileName) then 
     pcall(function() 
         local d = HttpService:JSONDecode(readfile(FileName)) 
@@ -42,14 +43,13 @@ if isfile(FileName) then
     end) 
 end
 
--- Share Config with the rest of the script
-Config = getgenv().Config 
-
+-- Helper to Save Settings (Used by UI)
 local function SaveConfig() 
     pcall(function() writefile(FileName, HttpService:JSONEncode(getgenv().Config)) end) 
 end
 
--- [3] UI BUILDER (Runs in background, doesn't stop farming)
+-- [3] SPAWN CONFIG UI (Separate Thread)
+-- This runs in the background so it doesn't block the farm.
 task.spawn(function()
     local Gui = Instance.new("ScreenGui"); Gui.Name = "NahsorConfig_UI"
     pcall(function() if LP.PlayerGui:FindFirstChild("NahsorConfig_UI") then LP.PlayerGui.NahsorConfig_UI:Destroy() end end)
@@ -57,31 +57,31 @@ task.spawn(function()
 
     local function Create(cls, props) local inst = Instance.new(cls); for k,v in pairs(props) do inst[k] = v end; return inst end
 
-    -- FLOATING BUTTON
+    -- Floating Gear Button
     local OpenBtn = Create("TextButton", {Parent=Gui, Size=UDim2.new(0,45,0,45), Position=UDim2.new(0.05,0,0.3,0), BackgroundColor3=Color3.fromRGB(35,35,35), Text="⚙", TextSize=24, TextColor3=Color3.fromRGB(255,255,255), AutoButtonColor=false})
     Create("UICorner", {Parent=OpenBtn, CornerRadius=UDim.new(1,0)})
     Create("UIStroke", {Parent=OpenBtn, Color=Color3.fromRGB(0,255,255), Thickness=2})
 
-    -- DRAG LOGIC
+    -- Drag Logic
     local drag, startPos; OpenBtn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then drag = i.Position; startPos = OpenBtn.Position; i.Changed:Connect(function() if i.UserInputState == Enum.UserInputState.End then drag = nil end end) end end)
     UserInputService.InputChanged:Connect(function(i) if (i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseMovement) and drag then local d = i.Position - drag; OpenBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y) end end)
 
-    -- MAIN MENU
+    -- Main Menu Frame
     local Main = Create("Frame", {Parent=Gui, Visible=false, Size=UDim2.new(0,300,0,360), Position=UDim2.new(0.5,-150,0.5,-180), BackgroundColor3=Color3.fromRGB(25,25,25)})
     Create("UICorner", {Parent=Main, CornerRadius=UDim.new(0,8)}); Create("UIStroke", {Parent=Main, Color=Color3.fromRGB(60,60,60), Thickness=1})
     local Header = Create("TextLabel", {Parent=Main, Size=UDim2.new(1,0,0,35), BackgroundTransparency=1, Text="  SETTINGS MANAGER", TextColor3=Color3.fromRGB(0,255,255), TextSize=14, Font=Enum.Font.GothamBold, TextXAlignment=Enum.TextXAlignment.Left})
 
-    -- DESCRIPTION PANEL
+    -- Description Bar
     local DescFrame = Create("Frame", {Parent=Main, Size=UDim2.new(0.94,0,0,45), Position=UDim2.new(0.03,0,1,-50), BackgroundColor3=Color3.fromRGB(40,40,40)})
     Create("UICorner", {Parent=DescFrame, CornerRadius=UDim.new(0,6)})
     local DescLbl = Create("TextLabel", {Parent=DescFrame, Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,5,0,0), BackgroundTransparency=1, Text="Tap [i] for details.", TextColor3=Color3.fromRGB(200,200,200), TextSize=12, Font=Enum.Font.Gotham, TextWrapped=true})
 
-    -- SCROLL LIST
+    -- Scroller
     local Scroll = Create("ScrollingFrame", {Parent=Main, Size=UDim2.new(1,-10,1,-95), Position=UDim2.new(0,5,0,40), BackgroundTransparency=1, ScrollBarThickness=3, CanvasSize=UDim2.new(0,0,0,0)})
     local List = Create("UIListLayout", {Parent=Scroll, Padding=UDim.new(0,5), SortOrder=Enum.SortOrder.LayoutOrder})
     List:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() Scroll.CanvasSize = UDim2.new(0,0,0,List.AbsoluteContentSize.Y+10) end)
 
-    -- OPTION GENERATOR
+    -- Generator Function
     local function AddOption(name, key, type, info)
         local Row = Create("Frame", {Parent=Scroll, Size=UDim2.new(1,-6,0,38), BackgroundColor3=Color3.fromRGB(35,35,35)})
         Create("UICorner", {Parent=Row, CornerRadius=UDim.new(0,6)})
@@ -92,27 +92,42 @@ task.spawn(function()
         Create("UICorner", {Parent=InfoBtn, CornerRadius=UDim.new(1,0)})
         InfoBtn.MouseButton1Click:Connect(function() DescLbl.Text = info end)
 
+        -- Load the value from file (NOT the active Config)
+        -- This ensures UI shows what is SAVED, which might be different from what is RUNNING.
+        local DisplayVal = getgenv().Config[key]
+
         if type == "Bool" then
             local Btn = Create("TextButton", {Parent=Row, Size=UDim2.new(0,45,0,22), Position=UDim2.new(1,-50,0,8)})
             Create("UICorner", {Parent=Btn, CornerRadius=UDim.new(0,4)})
-            local function Update() Btn.Text = Config[key] and "ON" or "OFF"; Btn.BackgroundColor3 = Config[key] and Color3.fromRGB(0,200,100) or Color3.fromRGB(200,50,50) end
-            Btn.MouseButton1Click:Connect(function() Config[key] = not Config[key]; Update(); SaveConfig() end); Update()
+            
+            local function Update() 
+                Btn.Text = getgenv().Config[key] and "ON" or "OFF"
+                Btn.BackgroundColor3 = getgenv().Config[key] and Color3.fromRGB(0,200,100) or Color3.fromRGB(200,50,50) 
+            end
+            
+            Btn.MouseButton1Click:Connect(function() 
+                getgenv().Config[key] = not getgenv().Config[key] -- Toggle Global Value
+                Update()
+                SaveConfig() -- Save to File
+            end)
+            Update()
         else
-            local Box = Create("TextBox", {Parent=Row, Size=UDim2.new(0,50,0,22), Position=UDim2.new(1,-55,0,8), BackgroundColor3=Color3.fromRGB(20,20,20), TextColor3=Color3.fromRGB(255,255,255), Text=tostring(Config[key]), Font=Enum.Font.Gotham})
+            local Box = Create("TextBox", {Parent=Row, Size=UDim2.new(0,50,0,22), Position=UDim2.new(1,-55,0,8), BackgroundColor3=Color3.fromRGB(20,20,20), TextColor3=Color3.fromRGB(255,255,255), Text=tostring(getgenv().Config[key]), Font=Enum.Font.Gotham})
             Create("UICorner", {Parent=Box, CornerRadius=UDim.new(0,4)})
             
             Box.FocusLost:Connect(function() 
-                local n = tonumber(Box.Text); 
+                local n = tonumber(Box.Text)
                 if n then 
-                    Config[key]=n; SaveConfig() 
+                    getgenv().Config[key] = n 
+                    SaveConfig() 
                 else 
-                    Box.Text=tostring(Config[key]) 
+                    Box.Text = tostring(getgenv().Config[key]) 
                 end 
             end)
         end
     end
 
-    -- POPULATE MENU
+    -- Populate Menu
     AddOption("Farm Chests", "FarmChests", "Bool", "Main Feature: Collects chests.")
     AddOption("3D Saver", "Disable3DRender", "Bool", "Stops GPU Rendering. Highly Recommended.")
     AddOption("AFK Overlay", "AFKMode", "Bool", "Black screen on start to save battery.")
@@ -150,8 +165,9 @@ CollectedFruits = getgenv().CollectedFruits
 Farming = getgenv().Farming
 Hopping = getgenv().Hopping
 RareItems = getgenv().RareItems
+Config = getgenv().Config -- CRITICAL: Allows Chunk 2/3 to see the settings
 
--- [5] INITIALIZATION (Auto-Start)
+-- [5] START FARMING LOGIC
 pcall(function() Stats.StartMoney = LP.Data.Beli.Value end)
 
 task.spawn(function()
@@ -220,6 +236,10 @@ task.spawn(function()
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
 end)
+
+
+
+
 
 
 
