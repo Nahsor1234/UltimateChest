@@ -1,5 +1,5 @@
--- // NAHSOR CHESTHUB V14.2 - CHUNK 1 //
--- [FIXES: Teleport Spam | Fruit Return | Game Full Crash]
+-- // NAHSOR CHESTHUB V14.3 - CHUNK 1 //
+-- [RESTORED: Old Aggressive Fast Mode]
 if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait() until game.Players.LocalPlayer
 repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
@@ -32,16 +32,15 @@ local Config = {
     Disable3DRender = true,
     AFKMode = true,
     FastMode = true,        
-    UltraFastMode = false,  
+    UltraFastMode = false, -- Set to true if you want the map to look black/ugly but super fast
     StopOnRareItem = true,
     AdminHop = true, 
     FarmChests = true,
     FarmFruit = true,
-    HopDelay = 8, -- Increased to 8s for better stability
+    HopDelay = 8,
     MaxFarmDistance = 4000
 }
 
--- [FIXED CONFIG LOADER]
 pcall(function()
     if getgenv and getgenv().UserConfig then
         for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
@@ -95,6 +94,7 @@ local function MakeDraggable(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
+-- [RESTORED OLD LOGIC]
 local function ApplyFastMode()
     if Config.UltraFastMode then return end
     if not Config.FastMode then return end
@@ -105,24 +105,45 @@ local function ApplyFastMode()
         if v:IsA("BasePart") then pcall(function() v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false end) end
         if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 end
     end
-    -- [OPTIMIZATION] Only scan workspace once to reduce lag
     for _,v in pairs(workspace:GetDescendants()) do Fastify(v) end
     workspace.DescendantAdded:Connect(Fastify)
 end
 
+local function ApplyUltraFastMode()
+    if not Config.UltraFastMode then return end
+    pcall(function()
+        local L = game:GetService("Lighting")
+        L.GlobalShadows = false
+        L.FogEnd = 9e9
+        L.Brightness = 0.4
+        L.Ambient = Color3.new(0,0,0)
+        L.OutdoorAmbient = Color3.new(0,0,0)
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        for _,v in pairs(L:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end end
+        local function Clear(v)
+            if v:IsA("BasePart") then v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false
+            elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") then v:Destroy()
+            elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then v:Destroy() end
+        end
+        for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
+        workspace.DescendantAdded:Connect(Clear)
+    end)
+end
+
 task_spawn(function()
     task_wait(1)
-    if Config.FastMode then ApplyFastMode() end
+    if Config.UltraFastMode then ApplyUltraFastMode()
+    elseif Config.FastMode then ApplyFastMode() end
 end)
 
 
 
+--48373737377383838838
 
---((((((((((((((((((())))))))))))
 
 
--- // NAHSOR CHESTHUB V14.2 - CHUNK 2 //
--- [FIXED RARE ITEM CHECK]
+-- // NAHSOR CHESTHUB V14.3 - CHUNK 2 //
 local function CheckRareItems()
     if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
     for _, item in pairs(RareItems) do
@@ -131,13 +152,26 @@ local function CheckRareItems()
     return false
 end
 
+-- [NEW: METHOD 2 - BLIND HOP]
+-- Used when API is busy. Does not use HTTP requests.
+local function BlindHop()
+    StatusLbl.Text = "Method 2: Blind Hop..."
+    StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+    
+    if Config.Disable3DRender then
+        pcall(function() RunService:Set3dRenderingEnabled(false) end)
+    end
+    
+    -- This forces Roblox to find ANY server. It ignores the server list.
+    TeleportService:Teleport(game.PlaceId, LP)
+end
+
 local function ServerHop()
-    -- [LOCK] Prevent double teleport calls
     if Hopping then return end
     
     if Config.StopOnRareItem and CheckRareItems() then
         StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
-        Farming, Hopping = false, true -- Lock it so it doesn't farm, but don't hop
+        Farming, Hopping = false, true
         return
     end
 
@@ -152,7 +186,7 @@ local function ServerHop()
         while timer < 3 do task_wait(1) timer = timer + 1 if AreChestsLoaded() then break end end
     end
 
-    Hopping = true -- Activate Lock
+    Hopping = true
     StatusLbl.Text = "Searching Server..."
     
     local PlaceID = game.PlaceId
@@ -162,31 +196,30 @@ local function ServerHop()
     pcall(function() AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json")) end)
     if not AllIDs or tonumber(AllIDs[1]) ~= actualHour then AllIDs = {actualHour} end
     
-    -- Blacklist current server immediately
     table.insert(AllIDs, game.JobId)
     pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
     
     local function Scan()
         local foundAnything = ""
         local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
-        local attempts = 0
+        local apiErrors = 0 -- Counter for API failures
         
         while true do
-            attempts = attempts + 1
-            if attempts > 15 then
-                StatusLbl.Text = "FORCE RANDOM HOP..."
-                TeleportService:Teleport(PlaceID, LP)
-                break
+            -- [FAILSAFE] If API fails 5 times, switch to Method 2 immediately
+            if apiErrors >= 5 then
+                StatusLbl.Text = "API Broken. Swapping Method..."
+                task_wait(1)
+                BlindHop() 
+                break 
             end
 
-            task_wait(1.0) -- Slowed down slightly to prevent API Busy
             local cursorUrl = url .. (foundAnything ~= "" and '&cursor=' .. foundAnything or "")
             local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
             
             if success and result and result.data then
+                apiErrors = 0 -- Reset error count on success
                 for _, v in pairs(result.data) do
                     local ID = tostring(v.id)
-                    -- [FIX: GAME FULL] Buffer set to -2 so we don't join 11/12 servers
                     if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
                         local Possible = true
                         for _, Existing in pairs(AllIDs) do if ID == tostring(Existing) then Possible = false end end
@@ -204,15 +237,17 @@ local function ServerHop()
                             end
                             
                             TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
-                            task_wait(15) -- Wait longer for ping to catch up
+                            task_wait(15) 
                             RunService:Set3dRenderingEnabled(true)
                         end
                     end
                 end
                 if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else foundAnything = "" end
             else
-                StatusLbl.Text = "API Busy... Retrying"
-                task_wait(2)
+                -- [ERROR DETECTED]
+                apiErrors = apiErrors + 1
+                StatusLbl.Text = "API Busy ("..apiErrors.."/5)..."
+                task_wait(1.5)
             end
         end
     end
@@ -226,12 +261,11 @@ Players.PlayerAdded:Connect(function(v)
     end
 end)
 
--- [FIX: CRASH LOOP] Reset hopping status on fail
 TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
     if player == LP then 
         Hopping = false 
         RunService:Set3dRenderingEnabled(true)
-        task_wait(5) -- Cooldown before retrying
+        task_wait(5)
         ServerHop() 
     end
 end)
@@ -252,7 +286,7 @@ local function SendWebhook(item)
         pcall(function() currentBeli = LP.Data.Beli.Value end)
         local duration = os_time() - Stats.StartTime
         local timeString = string.format("%02d:%02d:%02d", math_floor(duration/3600), math_floor((duration%3600)/60), duration%60)
-        local data = {["embeds"] = {{["title"] = (item and item ~= "") and "🚨 RARE ITEM!" or "💰 SERVER REPORT", ["description"] = "**Player:** " .. LP.Name .. "\n**Time:** " .. timeString .. "\n**Chests:** " .. tostring(Stats.Chests) .. "\n**Money:** $" .. tostring(currentBeli - Stats.StartMoney) .. "\n**Fruit:** " .. (item or "None"), ["color"] = (item and item ~= "") and 16711680 or 65280, ["footer"] = { ["text"] = "Nahsor ChestHub V14.2" }}}}
+        local data = {["embeds"] = {{["title"] = (item and item ~= "") and "🚨 RARE ITEM!" or "💰 SERVER REPORT", ["description"] = "**Player:** " .. LP.Name .. "\n**Time:** " .. timeString .. "\n**Chests:** " .. tostring(Stats.Chests) .. "\n**Money:** $" .. tostring(currentBeli - Stats.StartMoney) .. "\n**Fruit:** " .. (item or "None"), ["color"] = (item and item ~= "") and 16711680 or 65280, ["footer"] = { ["text"] = "Nahsor ChestHub V14.3" }}}}
         pcall(function() request({Url = Config.WebhookURL, Body = HttpService:JSONEncode(data), Method = "POST", Headers = {["Content-Type"] = "application/json"}}) end)
     end)
 end
@@ -301,11 +335,11 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 
 
 
+--3838374747747473737
 
---((((((((((((())))))))))))
 
 
--- // NAHSOR CHESTHUB V14.2 - CHUNK 3 //
+-- // NAHSOR CHESTHUB V14.3 - CHUNK 3 //
 task_spawn(function()
     task_wait(2) 
     if LP.Data and LP.Data:FindFirstChild("Beli") then
@@ -329,25 +363,22 @@ Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
 local BlurFrame = Instance.new("Frame", ScreenGui)
 BlurFrame.Name, BlurFrame.Size, BlurFrame.BackgroundColor3, BlurFrame.Visible = "AFKOverlay", UDim2.new(1,0,1,0), Color3.fromRGB(0,0,0), Config.AFKMode
 
--- [FIX: FRUIT RETURN LOGIC]
 local function StoreFruit(fruit)
     if not fruit or not fruit:FindFirstChild("Handle") then return end
     
-    -- 1. SAVE POSITION
+    -- [FEATURE] Save Position before going to fruit
     local OldCFrame = LP.Character.HumanoidRootPart.CFrame
     
-    -- 2. BYPASS TP TO FRUIT
     LP.Character.HumanoidRootPart.CFrame = fruit.Handle.CFrame
     task_wait(0.2)
     firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 0)
     firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 1)
     
-    -- 3. STORE
     local args = { [1] = "StoreFruit", [2] = fruit:GetAttribute("OriginalName") or fruit.Name, [3] = fruit }
     pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args)) end)
     table.insert(CollectedFruits, fruit:GetAttribute("OriginalName") or fruit.Name)
     
-    -- 4. RETURN TO FARMING SPOT
+    -- [FEATURE] Return to Farming Spot
     task_wait(0.2)
     LP.Character.HumanoidRootPart.CFrame = OldCFrame
 end
@@ -431,7 +462,6 @@ task_spawn(function() while true do TimerLbl.Text = string.format("Time: %02d:%0
 task.spawn(function()
     local StartClock = os.time()
     while task.wait(5) do
-        -- [FIX: INTERFERENCE CHECK] Don't run Time Hop if Chest Hop is active
         if Hopping then continue end 
         
         if not Farming or (Config.StopOnRareItem and CheckRareItems()) then continue end
@@ -443,6 +473,7 @@ task.spawn(function()
             if s and r and r.data then
                 for _, v in pairs(r.data) do if v.playing < (v.maxPlayers - 2) and tostring(v.id) ~= game.JobId then TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, LP) task.wait(10) end end
             end
+            -- If the scan above fails, this fallback Teleport will execute (Dual Hop for Time Limit too)
             TeleportService:Teleport(game.PlaceId, LP)
             task.wait(10)
         end
