@@ -517,11 +517,11 @@ end)
 
 -- [INIT: Check Initial State]
 if Config.Disable3DRender then
-    RenderBtn.Text = "SAVER: ON"
+    RenderBtn.Text = "3d Rend: ON"
     RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
     pcall(function() RunService:Set3dRenderingEnabled(false) end)
 else
-    RenderBtn.Text = "SAVER: OFF"
+    RenderBtn.Text = "3d Rend: OFF"
     RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
     pcall(function() RunService:Set3dRenderingEnabled(true) end)
 end
