@@ -276,7 +276,7 @@ FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
 TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
 EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
 StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
--- // NAHSOR CHESTHUB V14.0 - CHUNK 3 //
+-- // NAHSOR CHESTHUB V14.0 - CHUNK 3 (FIXED) //
 task_spawn(function()
     task_wait(2) 
     if LP.Data and LP.Data:FindFirstChild("Beli") then
@@ -286,50 +286,42 @@ end)
 
 local Divider = Instance.new("Frame", MainFrame)
 Divider.BackgroundColor3, Divider.BorderSizePixel, Divider.Size, Divider.LayoutOrder, Divider.ZIndex = Color3.fromRGB(60, 60, 60), 0, UDim2.new(1, 0, 0, 1), 6, 11
-
 local BtnRow = Instance.new("Frame", MainFrame)
 BtnRow.BackgroundTransparency, BtnRow.Size, BtnRow.LayoutOrder, BtnRow.ZIndex = 1, UDim2.new(1, 0, 0, 24), 7, 11
-
 local ToggleBtn = Instance.new("TextButton", BtnRow)
 ToggleBtn.Text, ToggleBtn.BackgroundColor3, ToggleBtn.Size, ToggleBtn.ZIndex = "ON", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), 12
 Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
-
 local HopBtn = Instance.new("TextButton", BtnRow)
 HopBtn.Text, HopBtn.BackgroundColor3, HopBtn.Size, HopBtn.Position, HopBtn.ZIndex = "HOP", Color3.fromRGB(40, 100, 220), UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0), 12
 Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 6)
-
 local AFKBtn = Instance.new("TextButton", MainFrame)
 AFKBtn.Text, AFKBtn.BackgroundColor3, AFKBtn.Size, AFKBtn.LayoutOrder, AFKBtn.ZIndex = "AFK: ON", Color3.fromRGB(40, 180, 40), UDim2.new(1, 0, 0, 24), 8, 12
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
-
 local BlurFrame = Instance.new("Frame", ScreenGui)
 BlurFrame.Name, BlurFrame.Size, BlurFrame.BackgroundColor3, BlurFrame.Visible = "AFKOverlay", UDim2.new(1,0,1,0), Color3.fromRGB(0,0,0), Config.AFKMode
 
 local function StoreFruit(fruit)
-    if not fruit then return end
-    if fruit:FindFirstChild("Handle") then
-        LP.Character.HumanoidRootPart.CFrame = fruit.Handle.CFrame
-        firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 0)
-        firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 1)
-        task_wait(0.5)
-    end
+    if not fruit or not fruit:FindFirstChild("Handle") then return end
+    LP.Character.HumanoidRootPart.CFrame = fruit.Handle.CFrame
+    firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 0)
+    firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 1)
+    task_wait(0.5)
     table.insert(CollectedFruits, fruit:GetAttribute("OriginalName") or fruit.Name)
     pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("StoreFruit", fruit:GetAttribute("OriginalName") or fruit.Name, fruit) end)
 end
 
 local function UpdateCache()
-    if os_time() - LastCacheRefresh < 1 then return end
+    if os_time() - LastCacheRefresh < 1.5 then return end
     LastCacheRefresh = os_time()
     table.clear(ChestCache)
     for _, v in pairs(workspace:GetDescendants()) do
         if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then table.insert(ChestCache, v) end
     end
-    if #ChestCache > 0 then StatusLbl.Text = "Found: " .. #ChestCache .. " chests" end
 end
 
 local function CheckStuck(root)
     if (root.Position - LastPos).Magnitude < 2 then
-        if os_time() - LastMoveTime > 15 then StatusLbl.Text = "Stuck! Hopping..." ServerHop() end
+        if os_time() - LastMoveTime > 12 then StatusLbl.Text = "Stuck! Hopping..." ServerHop() end
     else LastMoveTime = os_time() LastPos = root.Position end
 end
 
@@ -338,49 +330,52 @@ local function MainFarm()
     local char = LP.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
-    if Config.FarmChests then
-        CheckStuck(root)
-        UpdateCache()
-        if Config.FarmFruit then
-            for _, v in pairs(Workspace:GetChildren()) do
-                if v:IsA("Tool") and string.find(v.Name, "Fruit") then StoreFruit(v) end
+    
+    UpdateCache()
+    if Config.FarmFruit then
+        for _, v in pairs(Workspace:GetChildren()) do
+            if v:IsA("Tool") and string.find(v.Name, "Fruit") then StoreFruit(v) end
+        end
+    end
+
+    local target, minDist = nil, math_huge
+    for _, v in pairs(ChestCache) do
+        if v and v.Parent then
+            local dist = (v.Position - root.Position).Magnitude
+            if dist < Config.MaxFarmDistance and not VisitedChests[v] then
+                local isDup = false
+                for _, pos in pairs(CollectedPositions) do if (v.Position - pos).Magnitude < 5 then isDup = true break end end
+                if not isDup and dist < minDist then target = v minDist = dist end
             end
         end
-        local target, minDist = nil, math_huge
-        for _, v in pairs(ChestCache) do
-           if v and v.Parent then
-                local dist = (v.Position - root.Position).Magnitude
-                if dist < Config.MaxFarmDistance and not VisitedChests[v] then
-                     local isDup = false
-                     for _, pos in pairs(CollectedPositions) do if (v.Position - pos).Magnitude < 4 then isDup = true break end end
-                     if not isDup and dist < minDist then target = v minDist = dist end
-                end
-            end
+    end
+
+    if target then
+        IsMoving = true
+        StatusLbl.Text = "Chest: " .. math_floor(minDist) .. "m"
+        local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+        tween:Play()
+        while tween.PlaybackState == Enum.PlaybackState.Playing do 
+            if not Farming or Hopping then tween:Cancel() return end 
+            task_wait(0.05) 
         end
-        if target then
-            IsMoving = true
-            StatusLbl.Text = "Traveling: " .. math_floor(minDist) .. "m"
-            local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
-            tween:Play()
-            while tween.PlaybackState == Enum.PlaybackState.Playing do if not Farming then tween:Cancel() return end task_wait(0.1) end
-            if target.Parent then
-                root.CFrame = target.CFrame
-                firetouchinterest(root, target, 0)
-                firetouchinterest(root, target, 1)
-                pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
-                VisitedChests[target] = true
-                table.insert(CollectedPositions, target.Position)
-                Stats.Chests = Stats.Chests + 1
-                ChestsLbl.Text = "Chests: "..Stats.Chests
-                task_wait(Config.CollectionWait)
-            end
-            IsMoving = false
-        else
-            StatusLbl.Text = "Done! Hopping..."
-            local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
-            if Stats.Chests > 0 or fruits then SendWebhook(fruits) end
-            task_wait(3) ServerHop()
+        if target.Parent and (target.Position - root.Position).Magnitude < 15 then
+            firetouchinterest(root, target, 0)
+            firetouchinterest(root, target, 1)
+            pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
+            VisitedChests[target] = true
+            table.insert(CollectedPositions, target.Position)
+            Stats.Chests = Stats.Chests + 1
+            ChestsLbl.Text = "Chests: "..Stats.Chests
+            task_wait(Config.CollectionWait)
         end
+        IsMoving = false
+    else
+        StatusLbl.Text = "All Collected! Hopping..."
+        local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
+        if Stats.Chests > 0 or fruits then SendWebhook(fruits) end
+        task_wait(2) 
+        ServerHop()
     end
 end
 
@@ -388,7 +383,7 @@ ToggleBtn.MouseButton1Click:Connect(function() Farming = not Farming ToggleBtn.T
 HopBtn.MouseButton1Click:Connect(function() Hopping = false ServerHop() end)
 AFKBtn.MouseButton1Click:Connect(function() local IsAFK = not BlurFrame.Visible AFKBtn.Text = IsAFK and "AFK: ON" or "AFK: OFF" AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) BlurFrame.Visible = IsAFK end)
 
-task_spawn(function() while true do if Farming then pcall(MainFarm) end task_wait(0.1) end end)
+task_spawn(function() while true do if Farming and not Hopping then pcall(MainFarm) end task_wait(0.1) end end)
 task_spawn(function() while true do TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor((os_time()-Stats.StartTime)/3600), math_floor(((os_time()-Stats.StartTime)%3600)/60), (os_time()-Stats.StartTime)%60) task_wait(1) end end)
 
 task.spawn(function()
