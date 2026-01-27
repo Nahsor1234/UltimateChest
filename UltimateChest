@@ -480,6 +480,43 @@ AFKBtn.MouseButton1Click:Connect(function() local IsAFK = not BlurFrame.Visible 
 task_spawn(function() while true do if Farming and not Hopping then pcall(MainFarm) end task_wait(0.1) end end)
 task_spawn(function() while true do TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor((os_time()-Stats.StartTime)/3600), math_floor(((os_time()-Stats.StartTime)%3600)/60), (os_time()-Stats.StartTime)%60) task_wait(1) end end)
 
+-- [NEW: NO-RESPONSE TELEPORT FAILSAFE]
+-- This runs separately. If your ping freezes or spikes > 2000ms, it forces a hop.
+task.spawn(function()
+    local Stats = game:GetService("Stats")
+    local Network = Stats.Network.ServerStatsItem["Data Ping"]
+    local FailCount = 0
+    
+    while task.wait(5) do
+        local ping = math.floor(Network:GetValue())
+        
+        -- Condition 1: Ping is insanely high (Lag Freeze)
+        if ping > 2000 then
+            FailCount = FailCount + 1
+            StatusLbl.Text = "LAG FREEZE DETECTED ("..FailCount.."/3)"
+        else
+            FailCount = 0
+        end
+        
+        -- Condition 2: If we are stuck in a freeze for 15 seconds (3 checks)
+        if FailCount >= 3 then
+            StatusLbl.Text = "NO RESPONSE! FORCE HOPPING..."
+            StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+            
+            -- Panic Mode: Disable Rendering to save whatever CPU is left
+            pcall(function() RunService:Set3dRenderingEnabled(false) end)
+            
+            -- Force Blind Hop (Method 2)
+            TeleportService:Teleport(game.PlaceId, LP)
+            
+            -- Wait indefinitely until the game closes
+            while true do task.wait(1) end
+        end
+    end
+end)
+
+
+
 task.spawn(function()
     local StartClock = os.time()
     while task.wait(5) do
