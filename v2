@@ -509,7 +509,7 @@ RenderBtn.MouseButton1Click:Connect(function()
     
     -- SAVER: ON (Green) = Feature Active (Black Screen)
     -- SAVER: OFF (Red) = Feature Inactive (Visible Screen)
-    RenderBtn.Text = State and "SAVER: ON" or "SAVER: OFF"
+    RenderBtn.Text = State and "3d Rend: ON" or "3d Rend: OFF"
     RenderBtn.BackgroundColor3 = State and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
     
     pcall(function() RunService:Set3dRenderingEnabled(not State) end)
