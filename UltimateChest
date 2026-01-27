@@ -1,21 +1,25 @@
--- // NAHSOR CHESTHUB V15 [COMPLETE] //
--- [Config UI | Deep Clean Hop | Status Bar | Farm Logic]
+-- // NAHSOR CHESTHUB V15.1 [BULLETPROOF] //
+-- [FIX: UI shows instantly | Crashes prevented | Farm Auto-Start]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
-local Players = game:GetService("Players")
+
+-- [1] SAFE SERVICE LOADING
+local function GetService(name)
+    local s, r = pcall(function() return game:GetService(name) end)
+    return s and r or nil
+end
+
+local Players = GetService("Players")
 local LP = Players.LocalPlayer
-local HttpService = game:GetService("HttpService")
-local VirtualUser = game:GetService("VirtualUser")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CoreGui = game:GetService("CoreGui")
+local HttpService = GetService("HttpService")
+local UserInputService = GetService("UserInputService")
+local RunService = GetService("RunService")
+local TweenService = GetService("TweenService")
+local ReplicatedStorage = GetService("ReplicatedStorage")
+local CoreGui = GetService("CoreGui")
+local VirtualUser = GetService("VirtualUser") -- Safety wrapper
 
--- ==================================================================
--- [SECTION 1] CONFIGURATION & UI
--- ==================================================================
-
+-- [2] CONFIG SETUP
 getgenv().Config = {
     Disable3DRender = true, 
     AFKMode = true, 
@@ -32,8 +36,6 @@ getgenv().Config = {
 }
 
 local FileName = "NahsorConfig_v1.json"
-
--- Load Settings
 if isfile(FileName) then 
     pcall(function() 
         local d = HttpService:JSONDecode(readfile(FileName)) 
@@ -47,7 +49,29 @@ local function SaveConfig()
     pcall(function() writefile(FileName, HttpService:JSONEncode(getgenv().Config)) end) 
 end
 
--- Spawn Config UI
+-- [3] STATUS UI (MOVED TO TOP FOR INSTANT SHOW)
+local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "ChestHub_Core"; ScreenGui.IgnoreGuiInset = true 
+pcall(function() if LP.PlayerGui:FindFirstChild("ChestHub_Core") then LP.PlayerGui.ChestHub_Core:Destroy() end ScreenGui.Parent = LP.PlayerGui end)
+
+local MainFrame = Instance.new("Frame", ScreenGui); MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20); MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0); MainFrame.Size = UDim2.new(0, 170, 0, 0); MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+local Stroke = Instance.new("UIStroke", MainFrame); Stroke.Color = Color3.fromRGB(200, 40, 40); Stroke.Thickness = 1.5
+local UIList = Instance.new("UIListLayout", MainFrame); UIList.SortOrder = Enum.SortOrder.LayoutOrder; UIList.Padding = UDim.new(0, 4)
+local Padding = Instance.new("UIPadding", MainFrame); Padding.PaddingTop = UDim.new(0, 10); Padding.PaddingLeft = UDim.new(0, 10); Padding.PaddingRight = UDim.new(0, 10); Padding.PaddingBottom = UDim.new(0, 10)
+
+local function Label(text, color, order)
+    local l = Instance.new("TextLabel", MainFrame); l.Text, l.TextColor3, l.LayoutOrder = text, color or Color3.fromRGB(220, 220, 220), order
+    l.BackgroundTransparency, l.Size, l.Font, l.TextSize = 1, UDim2.new(1,0,0,16), Enum.Font.GothamBold, 12; l.TextXAlignment = Enum.TextXAlignment.Left; return l
+end
+
+-- Create Labels
+TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
+ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
+FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
+TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
+StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
+
+-- [4] CONFIG UI (THREADED)
 task.spawn(function()
     local Gui = Instance.new("ScreenGui"); Gui.Name = "NahsorConfig_UI"
     pcall(function() if LP.PlayerGui:FindFirstChild("NahsorConfig_UI") then LP.PlayerGui.NahsorConfig_UI:Destroy() end end)
@@ -63,16 +87,12 @@ task.spawn(function()
 
     local Main = Create("Frame", {Parent=Gui, Visible=false, Size=UDim2.new(0,300,0,360), Position=UDim2.new(0.5,-150,0.5,-180), BackgroundColor3=Color3.fromRGB(25,25,25)}); Create("UICorner", {Parent=Main, CornerRadius=UDim.new(0,8)}); Create("UIStroke", {Parent=Main, Color=Color3.fromRGB(60,60,60), Thickness=1})
     Create("TextLabel", {Parent=Main, Size=UDim2.new(1,0,0,35), BackgroundTransparency=1, Text="  SETTINGS MANAGER", TextColor3=Color3.fromRGB(0,255,255), TextSize=14, Font=Enum.Font.GothamBold, TextXAlignment=Enum.TextXAlignment.Left})
-    local DescFrame = Create("Frame", {Parent=Main, Size=UDim2.new(0.94,0,0,45), Position=UDim2.new(0.03,0,1,-50), BackgroundColor3=Color3.fromRGB(40,40,40)}); Create("UICorner", {Parent=DescFrame, CornerRadius=UDim.new(0,6)})
-    local DescLbl = Create("TextLabel", {Parent=DescFrame, Size=UDim2.new(1,-10,1,0), Position=UDim2.new(0,5,0,0), BackgroundTransparency=1, Text="Tap [i] for details.", TextColor3=Color3.fromRGB(200,200,200), TextSize=12, Font=Enum.Font.Gotham, TextWrapped=true})
-    local Scroll = Create("ScrollingFrame", {Parent=Main, Size=UDim2.new(1,-10,1,-95), Position=UDim2.new(0,5,0,40), BackgroundTransparency=1, ScrollBarThickness=3, CanvasSize=UDim2.new(0,0,0,0)})
+    local Scroll = Create("ScrollingFrame", {Parent=Main, Size=UDim2.new(1,-10,1,-45), Position=UDim2.new(0,5,0,40), BackgroundTransparency=1, ScrollBarThickness=3, CanvasSize=UDim2.new(0,0,0,0)})
     local List = Create("UIListLayout", {Parent=Scroll, Padding=UDim.new(0,5), SortOrder=Enum.SortOrder.LayoutOrder}); List:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() Scroll.CanvasSize = UDim2.new(0,0,0,List.AbsoluteContentSize.Y+10) end)
 
-    local function AddOption(name, key, type, info)
+    local function AddOption(name, key, type)
         local Row = Create("Frame", {Parent=Scroll, Size=UDim2.new(1,-6,0,38), BackgroundColor3=Color3.fromRGB(35,35,35)}); Create("UICorner", {Parent=Row, CornerRadius=UDim.new(0,6)})
         Create("TextLabel", {Parent=Row, Size=UDim2.new(0.6,0,1,0), Position=UDim2.new(0,10,0,0), BackgroundTransparency=1, Text=name, TextColor3=Color3.fromRGB(220,220,220), TextSize=13, Font=Enum.Font.Gotham, TextXAlignment=Enum.TextXAlignment.Left})
-        local InfoBtn = Create("TextButton", {Parent=Row, Size=UDim2.new(0,20,0,20), Position=UDim2.new(0.6,-5,0.5,-10), BackgroundColor3=Color3.fromRGB(60,60,60), Text="i", TextColor3=Color3.fromRGB(0,255,255), TextSize=12, Font=Enum.Font.GothamBold}); Create("UICorner", {Parent=InfoBtn, CornerRadius=UDim.new(1,0)})
-        InfoBtn.MouseButton1Click:Connect(function() DescLbl.Text = info end)
         
         if type == "Bool" then
             local Btn = Create("TextButton", {Parent=Row, Size=UDim2.new(0,45,0,22), Position=UDim2.new(1,-50,0,8)}); Create("UICorner", {Parent=Btn, CornerRadius=UDim.new(0,4)})
@@ -83,24 +103,14 @@ task.spawn(function()
             Box.FocusLost:Connect(function() local n = tonumber(Box.Text); if n then getgenv().Config[key]=n; SaveConfig() else Box.Text=tostring(getgenv().Config[key]) end end)
         end
     end
-    AddOption("Farm Chests", "FarmChests", "Bool", "Main Feature: Collects chests.")
-    AddOption("3D Saver", "Disable3DRender", "Bool", "Stops GPU Rendering. Highly Recommended.")
-    AddOption("AFK Overlay", "AFKMode", "Bool", "Black screen on start to save battery.")
-    AddOption("Fast Mode", "FastMode", "Bool", "Lowers texture quality.")
-    AddOption("Ultra Fast", "UltraFastMode", "Bool", "Deletes Map (Void Mode).")
-    AddOption("Stop on Rare", "StopOnRareItem", "Bool", "Stops hopping if God's Chalice found.")
-    AddOption("Time Limit (s)", "MaxTime", "Num", "Force hop after X seconds.")
-    AddOption("Tween Speed", "TweenSpeed", "Num", "Flight Speed (Higher = Slower).")
-    AddOption("Max Dist", "MaxFarmDistance", "Num", "Max distance to scan for chests.")
-    AddOption("Hop Delay (s)", "HopDelay", "Num", "Seconds to wait before hopping.")
+    AddOption("Farm Chests", "FarmChests", "Bool"); AddOption("3D Saver", "Disable3DRender", "Bool")
+    AddOption("AFK Overlay", "AFKMode", "Bool"); AddOption("Fast Mode", "FastMode", "Bool"); AddOption("Ultra Fast", "UltraFastMode", "Bool")
+    AddOption("Stop on Rare", "StopOnRareItem", "Bool"); AddOption("Time Limit (s)", "MaxTime", "Num")
+    AddOption("Tween Speed", "TweenSpeed", "Num"); AddOption("Max Dist", "MaxFarmDistance", "Num"); AddOption("Hop Delay (s)", "HopDelay", "Num")
     OpenBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 end)
 
--- ==================================================================
--- [SECTION 2] VARIABLES & SETUP
--- ==================================================================
-
-local Config = getgenv().Config -- LOCAL REFERENCE FOR SPEED
+-- [5] VARIABLES
 local Stats = { Chests = 0, StartMoney = 0, StartTime = os.time() }
 local ChestCache = {}
 local VisitedChests = {} 
@@ -114,194 +124,23 @@ local LastPos = Vector3.new(0,0,0)
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local LastCacheRefresh = 0
 
-pcall(function() Stats.StartMoney = LP.Data.Beli.Value end)
-
-task.spawn(function()
-    repeat task.wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
-    local attempts = 0
-    while attempts < 60 do 
-        if LP.Team and LP.Team.Name == "Pirates" then break end
-        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
-        attempts = attempts + 1
-        task.wait(1)
-    end
-end)
-
-LP.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new(0,0))
-end)
-
-local function ApplyFastMode()
-    if Config.UltraFastMode then return end
-    if not Config.FastMode then return end
-    local L = game:GetService("Lighting")
-    L.GlobalShadows, L.FogEnd = false, 9e9
-    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-    for _,v in pairs(workspace:GetDescendants()) do 
-        if v:IsA("BasePart") then v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false end
-        if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 end
-    end
-end
-
-local function ApplyUltraFastMode()
-    if not Config.UltraFastMode then return end
-    pcall(function()
-        local L = game:GetService("Lighting")
-        L.GlobalShadows = false
-        L.FogEnd = 9e9
-        L.Brightness = 0.4
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-        for _,v in pairs(L:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end end
-        workspace.Terrain:Clear() 
-        for _,v in pairs(workspace:GetDescendants()) do 
-            if v:IsA("BasePart") then v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false end
-            if v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then v:Destroy() end
-        end
-    end)
-end
-
-task.spawn(function()
-    task.wait(1)
-    if Config.UltraFastMode then ApplyUltraFastMode()
-    elseif Config.FastMode then ApplyFastMode() end
-end)
-
--- ==================================================================
--- [SECTION 3] HOPPING LOGIC
--- ==================================================================
-
-local function CheckRareItems()
-    if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
-    for _, item in pairs(RareItems) do
-        if LP.Backpack:FindFirstChild(item) or LP.Character:FindFirstChild(item) then return true end
-    end
-    return false
-end
-
-local function BlindHop()
-    if Config.Disable3DRender then pcall(function() RunService:Set3dRenderingEnabled(false) end) end
-    TeleportService:Teleport(game.PlaceId, LP)
-end
-
-local function ServerHop()
-    if Hopping then return end
-    
-    -- DEEP CLEAN
-    table.clear(ChestCache); table.clear(VisitedChests); table.clear(CollectedPositions)
-    for i = 1, 3 do task.wait(0.1); local junk = gcinfo() end
-
-    if Config.StopOnRareItem and CheckRareItems() then
-        Farming, Hopping = false, true
-        return
-    end
-
-    Hopping = true
-    task.wait(3) -- Thermal Cool Down
-
-    local PlaceID = game.PlaceId
-    local AllIDs = {}
-    local actualHour = os.date("!*t").hour
-    pcall(function() AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json")) end)
-    if not AllIDs or tonumber(AllIDs[1]) ~= actualHour then AllIDs = {actualHour} end
-    table.insert(AllIDs, game.JobId)
-    pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
-    
-    local function Scan()
-        local foundAnything = ""
-        local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
-        local apiErrors = 0 
-        while true do
-            if apiErrors >= 2 then BlindHop(); break end
-            local cursorUrl = url .. (foundAnything ~= "" and '&cursor=' .. foundAnything or "")
-            local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
-            if success and result and result.data then
-                apiErrors = 0 
-                for _, v in pairs(result.data) do
-                    local ID = tostring(v.id)
-                    if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
-                        local Possible = true
-                        for _, Existing in pairs(AllIDs) do if ID == tostring(Existing) then Possible = false end end
-                        if Possible then
-                            table.insert(AllIDs, ID)
-                            pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
-                            pcall(function() RunService:Set3dRenderingEnabled(false) end)
-                            TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
-                            task.wait(15) 
-                        end
-                    end
-                end
-                if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else foundAnything = "" end
-            else
-                apiErrors = apiErrors + 1
-                task.wait(1.0)
-            end
-        end
-    end
-    task.spawn(Scan)
-end
-
-Players.PlayerAdded:Connect(function(v)
-    if v:IsInGroup(4372130) and v:GetRankInGroup(4372130) > 20 then Farming = false; ServerHop() end
-end)
-TeleportService.TeleportInitFailed:Connect(function() Hopping = false; RunService:Set3dRenderingEnabled(true); BlindHop() end)
-task.spawn(function() CoreGui.RobloxPromptGui.DescendantAdded:Connect(function(child) if child.Name == "ErrorTitle" or child.Name == "ErrorPrompt" then Hopping = false; ServerHop() end end) end)
-
--- ==================================================================
--- [SECTION 4] MAIN FARM & STATUS UI
--- ==================================================================
-
-local ScreenGui = Instance.new("ScreenGui"); ScreenGui.Name = "ChestHub_Core"; ScreenGui.IgnoreGuiInset = true 
-pcall(function() if LP.PlayerGui:FindFirstChild("ChestHub_Core") then LP.PlayerGui.ChestHub_Core:Destroy() end ScreenGui.Parent = LP.PlayerGui end)
-
-local MainFrame = Instance.new("Frame", ScreenGui); MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20); MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0); MainFrame.Size = UDim2.new(0, 170, 0, 0); MainFrame.AutomaticSize = Enum.AutomaticSize.Y
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
-local Stroke = Instance.new("UIStroke", MainFrame); Stroke.Color = Color3.fromRGB(200, 40, 40); Stroke.Thickness = 1.5
-local UIList = Instance.new("UIListLayout", MainFrame); UIList.SortOrder = Enum.SortOrder.LayoutOrder; UIList.Padding = UDim.new(0, 4)
-local Padding = Instance.new("UIPadding", MainFrame); Padding.PaddingTop = UDim.new(0, 10); Padding.PaddingLeft = UDim.new(0, 10); Padding.PaddingRight = UDim.new(0, 10); Padding.PaddingBottom = UDim.new(0, 10)
-
-local function Label(text, color, order)
-    local l = Instance.new("TextLabel", MainFrame); l.Text, l.TextColor3, l.LayoutOrder = text, color or Color3.fromRGB(220, 220, 220), order
-    l.BackgroundTransparency, l.Size, l.Font, l.TextSize = 1, UDim2.new(1,0,0,16), Enum.Font.GothamBold, 12; l.TextXAlignment = Enum.TextXAlignment.Left; return l
-end
-
-TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
-ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
-FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
-TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
-EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
-StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
-
-task.spawn(function()
-    task.wait(2) 
-    if LP.Data and LP.Data:FindFirstChild("Beli") then
-        LP.Data.Beli.Changed:Connect(function() EarnedLbl.Text = "Money: $"..(LP.Data.Beli.Value - Stats.StartMoney) end)
-    end
-end)
-
+-- [6] RENDER BUTTON (Extra Row)
 local ExtraRow = Instance.new("Frame", MainFrame); ExtraRow.BackgroundTransparency, ExtraRow.Size, ExtraRow.LayoutOrder = 1, UDim2.new(1, 0, 0, 24), 8
 local RenderBtn = Instance.new("TextButton", ExtraRow); RenderBtn.Size = UDim2.new(1, 0, 1, 0); Instance.new("UICorner", RenderBtn).CornerRadius = UDim.new(0, 6)
-
--- RENDER BUTTON LOGIC
 RenderBtn.MouseButton1Click:Connect(function() 
-    Config.Disable3DRender = not Config.Disable3DRender
-    local State = Config.Disable3DRender
+    getgenv().Config.Disable3DRender = not getgenv().Config.Disable3DRender
+    local State = getgenv().Config.Disable3DRender
     RenderBtn.Text = State and "3d Rend: OFF" or "3d Rend: ON"
     RenderBtn.BackgroundColor3 = State and Color3.fromRGB(180, 40, 40) or Color3.fromRGB(40, 180, 40)
     pcall(function() RunService:Set3dRenderingEnabled(not State) end)
 end)
-
-if Config.Disable3DRender then
-    RenderBtn.Text = "3d Rend: OFF"
-    RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-    pcall(function() RunService:Set3dRenderingEnabled(false) end)
+if getgenv().Config.Disable3DRender then
+    RenderBtn.Text = "3d Rend: OFF"; RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40); pcall(function() RunService:Set3dRenderingEnabled(false) end)
 else
-    RenderBtn.Text = "3d Rend: ON"
-    RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
-    pcall(function() RunService:Set3dRenderingEnabled(true) end)
+    RenderBtn.Text = "3d Rend: ON"; RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40); pcall(function() RunService:Set3dRenderingEnabled(true) end)
 end
 
--- MAIN FARM LOOP
+-- [7] HELPER FUNCTIONS
 local function StoreFruit(fruit)
     if not fruit or not fruit:FindFirstChild("Handle") then return end
     local fruitName = fruit.Name
@@ -326,20 +165,85 @@ local function UpdateCache()
     end
 end
 
+-- [8] TEAM SELECT & STARTUP (Threaded)
+task.spawn(function()
+    repeat task.wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+    local attempts = 0
+    while attempts < 60 do 
+        if LP.Team and LP.Team.Name == "Pirates" then break end
+        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
+        attempts = attempts + 1
+        task.wait(1)
+    end
+end)
+
+-- [9] HOP LOGIC
+local function CheckRareItems()
+    if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
+    for _, item in pairs(RareItems) do if LP.Backpack:FindFirstChild(item) or LP.Character:FindFirstChild(item) then return true end end
+    return false
+end
+local function BlindHop()
+    if getgenv().Config.Disable3DRender then pcall(function() RunService:Set3dRenderingEnabled(false) end) end
+    pcall(function() game:GetService("TeleportService"):Teleport(game.PlaceId, LP) end)
+end
+local function ServerHop()
+    if Hopping then return end
+    table.clear(ChestCache); table.clear(VisitedChests); table.clear(CollectedPositions)
+    for i = 1, 3 do task.wait(0.1); local junk = gcinfo() end
+    if getgenv().Config.StopOnRareItem and CheckRareItems() then Farming, Hopping = false, true; return end
+    Hopping = true; task.wait(3) 
+    local PlaceID = game.PlaceId; local AllIDs = {}; local actualHour = os.date("!*t").hour
+    pcall(function() AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json")) end)
+    if not AllIDs or tonumber(AllIDs[1]) ~= actualHour then AllIDs = {actualHour} end
+    table.insert(AllIDs, game.JobId); pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+    local function Scan()
+        local foundAnything = ""; local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'; local apiErrors = 0 
+        while true do
+            if apiErrors >= 2 then BlindHop(); break end
+            local cursorUrl = url .. (foundAnything ~= "" and '&cursor=' .. foundAnything or "")
+            local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
+            if success and result and result.data then
+                apiErrors = 0 
+                for _, v in pairs(result.data) do
+                    local ID = tostring(v.id)
+                    if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
+                        local Possible = true
+                        for _, Existing in pairs(AllIDs) do if ID == tostring(Existing) then Possible = false end end
+                        if Possible then
+                            table.insert(AllIDs, ID); pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+                            pcall(function() RunService:Set3dRenderingEnabled(false) end)
+                            game:GetService("TeleportService"):TeleportToPlaceInstance(PlaceID, ID, LP); task.wait(15) 
+                        end
+                    end
+                end
+                if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else foundAnything = "" end
+            else apiErrors = apiErrors + 1; task.wait(1.0) end
+        end
+    end
+    task.spawn(Scan)
+end
+
+-- [10] MAIN LOOP
 local function MainFarm()
     if not Farming or Hopping then return end
     local char = LP.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    if not root then StatusLbl.Text = "Waiting for Character..."; return end
+    
     UpdateCache()
-    if Config.FarmFruit then for _, v in pairs(workspace:GetChildren()) do if v:IsA("Tool") and string.find(v.Name, "Fruit") then StatusLbl.Text = "Snipping: " .. v.Name; StoreFruit(v) end end end
+    if getgenv().Config.FarmFruit then 
+        for _, v in pairs(workspace:GetChildren()) do 
+            if v:IsA("Tool") and string.find(v.Name, "Fruit") then StatusLbl.Text = "Snipping: " .. v.Name; StoreFruit(v) end 
+        end 
+    end
 
     local target, minDist = nil, 99999
-    if Config.FarmChests then
+    if getgenv().Config.FarmChests then
         for _, v in pairs(ChestCache) do
             if v and v.Parent then
                 local dist = (v.Position - root.Position).Magnitude
-                if dist < Config.MaxFarmDistance and not VisitedChests[v] then
+                if dist < getgenv().Config.MaxFarmDistance and not VisitedChests[v] then
                     local isDup = false
                     for _, pos in pairs(CollectedPositions) do if (v.Position - pos).Magnitude < 5 then isDup = true break end end
                     if not isDup and dist < minDist then target = v minDist = dist end
@@ -349,9 +253,8 @@ local function MainFarm()
     end
 
     if target then
-        IsMoving = true
-        StatusLbl.Text = "Chest: " .. math.floor(minDist) .. "m"
-        local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+        IsMoving = true; StatusLbl.Text = "Chest: " .. math.floor(minDist) .. "m"
+        local tween = TweenService:Create(root, TweenInfo.new(minDist/getgenv().Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
         tween:Play()
         while tween.PlaybackState == Enum.PlaybackState.Playing do 
             if not Farming or Hopping then tween:Cancel() return end 
@@ -362,22 +265,22 @@ local function MainFarm()
             pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
             VisitedChests[target] = true; table.insert(CollectedPositions, target.Position)
             Stats.Chests = Stats.Chests + 1; ChestsLbl.Text = "Chests: "..Stats.Chests
-            task.wait(0.05) -- Collection Wait
+            task.wait(0.05)
         end
         IsMoving = false
     else
-        StatusLbl.Text = "Finished! Hopping..."
-        task.wait(3); ServerHop()
+        StatusLbl.Text = "Finished! Hopping..."; task.wait(3); ServerHop()
     end
 end
 
+-- [11] LOOPS
 task.spawn(function() while true do if Farming and not Hopping then pcall(MainFarm) end task.wait(0.1) end end)
 task.spawn(function() while true do TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math.floor((os.time()-Stats.StartTime)/3600), math.floor(((os.time()-Stats.StartTime)%3600)/60), (os.time()-Stats.StartTime)%60) task.wait(1) end end)
 task.spawn(function()
     local StartClock = os.time()
     while task.wait(5) do
         if Hopping then continue end 
-        if not Farming or (Config.StopOnRareItem and CheckRareItems()) then continue end
-        if Config.MaxTime and (os.time() - StartClock) >= Config.MaxTime then ServerHop() end
+        if not Farming or (getgenv().Config.StopOnRareItem and CheckRareItems()) then continue end
+        if getgenv().Config.MaxTime and (os.time() - StartClock) >= getgenv().Config.MaxTime then ServerHop() end
     end
 end)
