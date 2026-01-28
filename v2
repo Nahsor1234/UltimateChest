@@ -188,6 +188,8 @@ end)
 
 
 
+
+
 -- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
 -- [Fixes: Global Config, Shared Stats, Drag Function, Webhook Order]
 
@@ -257,9 +259,6 @@ pcall(function()
     end
 end)
 
--- 4. MAKE GLOBAL (CRITICAL FOR CHUNK 2)
-getgenv().Config = Config 
-
 -- ==================================================================
 -- [2] WEBHOOK SYSTEM
 -- ==================================================================
@@ -295,7 +294,6 @@ task_spawn(function()
         task_wait(1)
     end
 end)
-
 -- [5] ANTI-AFK
 LP.Idled:Connect(function()
     pcall(function()
@@ -357,8 +355,7 @@ local function ApplyUltraFastMode()
             elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then v:Destroy() end
         end
         for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
-        workspace.DescendantAdded:Connect(C
-lear)
+        workspace.DescendantAdded:Connect(Clear)
     end)
 end
 
@@ -367,8 +364,6 @@ task_spawn(function()
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
 end)
-
-
 
 
 
