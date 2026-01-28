@@ -186,8 +186,11 @@ end)
 
 
 
--- // NAHSOR CHESTHUB V14.6 - CHUNK 1 //
--- [UPDATED: Added File-Based Config Overwrite]
+
+
+
+-- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
+-- [Fixes: Global Config, Shared Stats, Drag Function, Webhook Order]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait() until game.Players.LocalPlayer
@@ -205,35 +208,6 @@ local CoreGui = game:GetService("CoreGui")
 local VirtualUser = game:GetService("VirtualUser")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
--- // WEBHOOK SENDING FUNCTION //
-local function SendWebhook(Title, Description, Color)
-    -- 1. Check if URL exists
-    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then return end
-    
-    -- 2. Create the Message (Embed)
-    local Embed = {
-        ["title"] = Title,
-        ["description"] = Description,
-        ["color"] = Color,
-        ["footer"] = { ["text"] = "Nahsor ChestHub • " .. os.date("%H:%M:%S") }
-    }
-    
-    -- 3. Prepare Data
-    local Data = { ["embeds"] = {Embed} }
-    local Body = HttpService:JSONEncode(Data)
-    local Headers = { ["Content-Type"] = "application/json" }
-    
-    -- 4. Detect Executor & Send
-    local req = http_request or request or HttpPost or syn.request
-    if req then
-        req({Url = getgenv().Config.WebhookURL, Method = "POST", Headers = Headers, Body = Body})
-    end
-end
-
--- Send a test message when script starts
-task.spawn(function()
-    SendWebhook("🟢 ChestHub Started", "Welcome back! Script is running.", 65280) 
-end)
 
 local task_wait, task_spawn = task.wait, task.spawn
 local math_floor, math_huge = math.floor, math.huge
@@ -242,7 +216,11 @@ local os_time, os_date = os.time, os.date
 local LP = Players.LocalPlayer
 local PlayerGui = LP:WaitForChild("PlayerGui")
 
--- [1] DEFAULT CONFIGURATION
+-- ==================================================================
+-- [1] CONFIGURATION (MUST BE TOP)
+-- ==================================================================
+
+-- 1. Defaults
 local Config = {
     WebhookURL = "https://discord.com/api/webhooks/1462804070728335370/Z2THKlk_RNm-R144EMLiLe9FTowNStytcgX5Vyprzb5LHTUqT3o72O-SVejkR_mcUure",
     TweenSpeed = 350,       
@@ -260,34 +238,66 @@ local Config = {
     MaxFarmDistance = 4000
 }
 
--- [2] CONFIG OVERWRITE SYSTEM (READS THE FILE)
+-- 2. File Overwrite
 local FileName = "NahsorConfig.json"
 if isfile(FileName) then
     pcall(function()
         local FileData = readfile(FileName)
         local UserSettings = HttpService:JSONDecode(FileData)
-        
         for Key, Value in pairs(UserSettings) do
-            -- Only overwrite if the setting exists in our defaults (Safety Check)
-            if Config[Key] ~= nil then
-                Config[Key] = Value
-            end
+            if Config[Key] ~= nil then Config[Key] = Value end
         end
-        print("[NahsorConfig] Loaded Settings from File!")
+        print("[NahsorConfig] Settings Loaded!")
     end)
-else
-    print("[NahsorConfig] No file found. Using Defaults.")
 end
 
--- [3] LEGACY OVERWRITE (Support for old getgenv method)
+-- 3. Legacy Support
 pcall(function()
     if getgenv and getgenv().UserConfig then
         for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
     end
 end)
 
--- [4] GLOBAL VARIABLES
-local Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
+-- 4. MAKE GLOBAL (CRITICAL FOR CHUNK 2)
+getgenv().Config = Config 
+
+-- ==================================================================
+-- [2] WEBHOOK SYSTEM
+-- ==================================================================
+
+local function SendWebhook(Title, Description, Color)
+    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then return end
+    
+    local Embed = {
+        ["title"] = Title,
+        ["description"] = Description,
+        ["color"] = Color,
+        ["footer"] = { ["text"] = "Nahsor ChestHub • " .. os.date("%H:%M:%S") }
+    }
+    
+    local Data = { ["embeds"] = {Embed} }
+    local Body = HttpService:JSONEncode(Data)
+    local Headers = { ["Content-Type"] = "application/json" }
+    
+    local req = http_request or request or HttpPost or syn.request
+    if req then
+        req({Url = getgenv().Config.WebhookURL, Method = "POST", Headers = Headers, Body = Body})
+    end
+end
+
+-- Send Start Message
+task_spawn(function()
+    SendWebhook("🟢 ChestHub Started", "Welcome back! Script is running.", 65280) 
+end)
+
+-- ==================================================================
+-- [3] VARIABLES & SHARED STATS
+-- ==================================================================
+
+-- [CRITICAL FIX] Stats must be Global so Chunk 2 (UI) can read them
+getgenv().Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
+pcall(function() getgenv().Stats.StartMoney = LP.Data.Beli.Value end)
+
 local ChestCache = {}
 local VisitedChests = {} 
 local CollectedPositions = {}
@@ -298,9 +308,7 @@ local LastPos = Vector3.new(0,0,0)
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local LastCacheRefresh = 0
 
-pcall(function() Stats.StartMoney = LP.Data.Beli.Value end)
-
--- [5] AUTO TEAM SELECT
+-- [4] AUTO TEAM SELECT
 task_spawn(function()
     repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
     local attempts = 0
@@ -312,7 +320,7 @@ task_spawn(function()
     end
 end)
 
--- [6] ANTI-AFK
+-- [5] ANTI-AFK
 LP.Idled:Connect(function()
     pcall(function()
         VirtualUser:CaptureController()
@@ -320,7 +328,8 @@ LP.Idled:Connect(function()
     end)
 end)
 
-local function MakeDraggable(gui)
+-- [CRITICAL FIX] MakeDraggable must be Global for Chunk 2
+getgenv().MakeDraggable = function(gui)
     local dragging, dragInput, dragStart, startPos
     local function update(input)
         local delta = input.Position - dragStart
@@ -338,7 +347,7 @@ local function MakeDraggable(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- [7] FAST MODE
+-- [6] FAST MODE
 local function ApplyFastMode()
     if Config.UltraFastMode then return end
     if not Config.FastMode then return end
@@ -353,7 +362,7 @@ local function ApplyFastMode()
     workspace.DescendantAdded:Connect(Fastify)
 end
 
--- [8] ULTRA FAST MODE
+-- [7] ULTRA FAST MODE
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     pcall(function()
@@ -381,8 +390,6 @@ task_spawn(function()
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
 end)
-
-
 
 
 
