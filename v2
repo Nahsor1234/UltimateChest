@@ -373,79 +373,57 @@ end)
 
 
 
+-- // NAHSOR CHESTHUB V14.6 - CHUNK 2 [FINAL RESTORED UI] //
 
--- // NAHSOR CHESTHUB V14.6 - CHUNK 2 [ORIGINAL UI & WORKING WEBHOOK] //
-
-
--- // GLOBAL WEBHOOK SENDER //
+-- [1] GLOBAL WEBHOOK TOOL (Self-Contained & Smart)
 getgenv().SendWebhook = function(item)
-    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" or not getgenv().Config.WebhookURL:find("discord") then return end
-    
-    task.spawn(function()
-        local request = http_request or request or HttpPost or syn.request
-        if not request then return end
-        
-        local currentBeli = 0
-        pcall(function() currentBeli = LP.Data.Beli.Value end)
-        
-        local duration = os.time() - getgenv().Stats.StartTime
-        local timeString = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
-        
-        local isAlert = (item and item ~= "")
-        local data = {["embeds"] = {{
-            ["title"] = isAlert and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT",
-            ["description"] = "**Player:** " .. LP.Name .. "\n**Time:** " .. timeString .. "\n**Chests:** " .. tostring(getgenv().Stats.Chests) .. "\n**Money:** $" .. tostring(currentBeli - getgenv().Stats.StartMoney) .. "\n**Fruit:** " .. (item or "None"),
-            ["color"] = isAlert and 16711680 or 65280,
-            ["footer"] = { ["text"] = "Nahsor ChestHub V14.6" }
-        }}}
-        
-        pcall(function() 
-            request({
-                Url = getgenv().Config.WebhookURL, 
-                Body = HttpService:JSONEncode(data), 
-                Method = "POST", 
-                Headers = {["Content-Type"] = "application/json"}
-            }) 
-        end)
-    end)
-end
+    -- Safety Check: Ensure URL exists
+    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then return end
 
--- [1] WEBHOOK FUNCTION (Restored to "Working" Version)
-local function SendWebhook(item)
-    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" or getgenv().Config.WebhookURL:find("discord") == nil then return end
-    
     task.spawn(function()
         local request = http_request or request or HttpPost or syn.request
         if not request then return end
-        
+
+        -- Gather Data safely
         local currentBeli = 0
         pcall(function() currentBeli = LP.Data.Beli.Value end)
         
-        local duration = os.time() - getgenv().Stats.StartTime
+        local startTime = getgenv().Stats.StartTime or os.time()
+        local duration = os.time() - startTime
         local timeString = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
+        local earned = currentBeli - (getgenv().Stats.StartMoney or 0)
+
+        -- Determine Message Type
+        local isStart = (item == "Start")
+        local isAlert = (item and item ~= "" and not isStart)
+
+        local Title = "💰 SERVER REPORT"
+        local Color = 65280 -- Green
         
-        local earned = currentBeli - getgenv().Stats.StartMoney
-        
-        -- If 'item' text is provided, it's a Rare Item Alert. If nil, it's a Stats Report.
-        local isAlert = (item and item ~= "")
-        
+        if isAlert then
+            Title = "🚨 RARE ITEM FOUND!"
+            Color = 16711680 -- Red
+        elseif isStart then
+            Title = "🟢 SCRIPT STARTED"
+            Color = 65535 -- Cyan
+        end
+
         local Embed = {
-            ["title"] = isAlert and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT",
+            ["title"] = Title,
             ["description"] = "**Player:** " .. LP.Name .. 
                               "\n**Time:** " .. timeString .. 
-                              "\n**Chests:** " .. tostring(getgenv().Stats.Chests) .. 
+                              "\n**Chests:** " .. tostring(getgenv().Stats.Chests or 0) .. 
                               "\n**Money:** $" .. tostring(earned) .. 
-                              "\n**Status:** " .. (item or "Farming"),
-            ["color"] = isAlert and 16711680 or 65280, -- Red for Alert, Green for Report
+                              "\n**Status:** " .. (isStart and "Running" or (item or "Farming")),
+            ["color"] = Color,
             ["footer"] = { ["text"] = "Nahsor ChestHub V14.6" }
         }
-        
-        local data = {["embeds"] = {Embed}}
-        
+
+        -- Send Request
         pcall(function() 
             request({
                 Url = getgenv().Config.WebhookURL, 
-                Body = HttpService:JSONEncode(data), 
+                Body = HttpService:JSONEncode({["embeds"] = {Embed}}), 
                 Method = "POST", 
                 Headers = {["Content-Type"] = "application/json"}
             }) 
@@ -477,7 +455,7 @@ local function ServerHop(Reason)
     if Hopping then return end
     
     -- [WEBHOOK] Send Report before hopping
-    SendWebhook(nil) -- nil means "Just send stats"
+    getgenv().SendWebhook(nil) -- Normal Report
     
     StatusLbl.Text = "Deep Cleaning RAM..."
     table.clear(ChestCache)
@@ -491,7 +469,7 @@ local function ServerHop(Reason)
 
     if getgenv().Config.StopOnRareItem and CheckRareItems() then
         StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
-        SendWebhook("God's Chalice / Fist") -- Send Alert
+        getgenv().SendWebhook("God's Chalice / Fist") -- Alert
         Farming, Hopping = false, true
         return
     end
@@ -584,7 +562,7 @@ task.spawn(function()
     GuiService.ErrorMessageChanged:Connect(function() Hopping = false; ServerHop("Gui Error") end)
 end)
 
--- [UI SETUP - ORIGINAL LAYOUT]
+-- [UI SETUP - ORIGINAL VERTICAL LAYOUT]
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ChestHub_Core"
 ScreenGui.IgnoreGuiInset = true 
@@ -597,7 +575,7 @@ MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
 MainFrame.Size = UDim2.new(0, 180, 0, 0)
 MainFrame.AutomaticSize = Enum.AutomaticSize.Y
 MainFrame.ZIndex = 10 
-getgenv().MakeDraggable(MainFrame) -- Uses Global Dragger from Chunk 1
+if getgenv().MakeDraggable then getgenv().MakeDraggable(MainFrame) end
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
 local Stroke = Instance.new("UIStroke", MainFrame)
@@ -618,14 +596,21 @@ local function Label(text, color, order)
     return l
 end
 
--- Original Vertical List (No Extra Buttons)
+-- Original Vertical List (Clean & Bold)
 TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
 ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
 FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
 TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
 EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
 StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
-                            
+
+-- [START TRIGGER] (This ensures you get the "Green" Start notification)
+task.spawn(function()
+    task.wait(2) -- Wait for stats to load
+    if getgenv().SendWebhook then
+        getgenv().SendWebhook("Start")
+    end
+end)
     
                             
         
