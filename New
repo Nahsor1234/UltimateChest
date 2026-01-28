@@ -437,3 +437,200 @@ getgenv().SendWebhook = function(msg)
 end
 
 print("✅ Webhook System Fixed! (Using 'Best' Logic)")
+
+
+
+
+
+
+
+
+
+
+-- // NAHSOR CHESTHUB V2 - CHUNK 2 [ENGINE MODIFIED] //
+-- [Status: Connects to your Webhook Fixer | Merged UI + Farming]
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+local GuiService = game:GetService("GuiService")
+local Workspace = game:GetService("Workspace")
+
+local task_wait, task_spawn = task.wait, task.spawn
+local math_floor = math.floor
+local os_time = os.time
+
+-- ==================================================================
+-- [1] THE CONNECTOR (This uses your "Best" Webhook)
+-- ==================================================================
+local function SendWebhook(msg)
+    -- This looks for the function you loaded in Step 2
+    if getgenv().SendWebhook then
+        getgenv().SendWebhook(msg)
+    end
+end
+
+-- ==================================================================
+-- [2] UI CONSTRUCTION (From v2)
+-- ==================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ChestHub_Core"
+ScreenGui.IgnoreGuiInset = true 
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling 
+pcall(function() if LP.PlayerGui:FindFirstChild("ChestHub_Core") then LP.PlayerGui.ChestHub_Core:Destroy() end ScreenGui.Parent = LP.PlayerGui end)
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Position = UDim2.new(0.02, 0, 0.45, 0)
+MainFrame.Size = UDim2.new(0, 180, 0, 0)
+MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+if getgenv().MakeDraggable then getgenv().MakeDraggable(MainFrame) end
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(40, 225, 80); Instance.new("UIStroke", MainFrame).Thickness = 1.5
+local UIList = Instance.new("UIListLayout", MainFrame); UIList.SortOrder = Enum.SortOrder.LayoutOrder; UIList.Padding = UDim.new(0, 4)
+local Padding = Instance.new("UIPadding", MainFrame); Padding.PaddingTop = UDim.new(0, 10); Padding.PaddingLeft = UDim.new(0, 10); Padding.PaddingRight = UDim.new(0, 10); Padding.PaddingBottom = UDim.new(0, 10)
+
+local function Label(text, color, order)
+    local l = Instance.new("TextLabel", MainFrame)
+    l.Text, l.TextColor3, l.LayoutOrder = text, color or Color3.fromRGB(220, 220, 220), order
+    l.BackgroundTransparency, l.Size, l.Font, l.TextSize = 1, UDim2.new(1,0,0,16), Enum.Font.GothamBold, 12
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    return l
+end
+
+TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
+ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
+FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
+TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
+EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
+StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
+
+-- Buttons
+local BtnRow = Instance.new("Frame", MainFrame); BtnRow.BackgroundTransparency = 1; BtnRow.Size = UDim2.new(1, 0, 0, 24); BtnRow.LayoutOrder = 7
+local ToggleBtn = Instance.new("TextButton", BtnRow); ToggleBtn.Text = "ON"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40); ToggleBtn.Size = UDim2.new(0.48, 0, 1, 0)
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
+local HopBtn = Instance.new("TextButton", BtnRow); HopBtn.Text = "HOP"; HopBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 220); HopBtn.Size = UDim2.new(0.48, 0, 1, 0); HopBtn.Position = UDim2.new(0.52, 0, 0, 0)
+Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 6)
+
+local ExtraRow = Instance.new("Frame", MainFrame); ExtraRow.BackgroundTransparency = 1; ExtraRow.Size = UDim2.new(1, 0, 0, 24); ExtraRow.LayoutOrder = 8
+local AFKBtn = Instance.new("TextButton", ExtraRow); AFKBtn.Text = "AFK"; AFKBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40); AFKBtn.Size = UDim2.new(0.48, 0, 1, 0)
+Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
+local RenderBtn = Instance.new("TextButton", ExtraRow); RenderBtn.Text = "3d Rend: ON"; RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40); RenderBtn.Size = UDim2.new(0.48, 0, 1, 0); RenderBtn.Position = UDim2.new(0.52, 0, 0, 0)
+Instance.new("UICorner", RenderBtn).CornerRadius = UDim.new(0, 6)
+local BlurFrame = Instance.new("Frame", ScreenGui); BlurFrame.Name = "AFKOverlay"; BlurFrame.Size = UDim2.new(1,0,1,0); BlurFrame.BackgroundColor3 = Color3.fromRGB(0,0,0); BlurFrame.Visible = Config.AFKMode
+
+-- ==================================================================
+-- [3] LOGIC (Merged from v2)
+-- ==================================================================
+local ChestCache, VisitedChests, CollectedPositions, CollectedFruits = {}, {}, {}, {}
+local Farming, Hopping = true, false
+local RareItems = {"God's Chalice", "Fist of Darkness"}
+
+local function ServerHop(Reason)
+    if Hopping then return end
+    SendWebhook(nil)
+    StatusLbl.Text = "Hopping..."
+    Hopping = true
+    task_wait(3)
+    
+    local PlaceID = game.PlaceId
+    local AllIDs = {}
+    pcall(function() AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json")) end)
+    if not AllIDs or type(AllIDs) ~= "table" then AllIDs = {} end
+    table.insert(AllIDs, game.JobId)
+    pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+
+    local function Scan()
+        local cursor = ""
+        while true do
+            local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. cursor
+            local s, r = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+            if s and r and r.data then
+                for _, v in pairs(r.data) do
+                    local ID = tostring(v.id)
+                    if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
+                        local New = true
+                        for _, old in pairs(AllIDs) do if tostring(old) == ID then New = false end end
+                        if New then
+                            TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
+                            task_wait(15)
+                        end
+                    end
+                end
+                cursor = r.nextPageCursor or ""
+                if cursor == "" then break end
+            end
+            task_wait(1)
+        end
+    end
+    task_spawn(Scan)
+end
+
+local function GetChests()
+    local Ret = {}
+    for _, v in pairs(Workspace:GetChildren()) do
+        if v.Name:find("Chest") or v.Name:find("Treasure") then table.insert(Ret, v) end
+    end
+    return Ret
+end
+
+local function TP(Pos)
+    local Distance = (Pos.Position - LP.Character.HumanoidRootPart.Position).Magnitude
+    local Speed = getgenv().Config.TweenSpeed or 350
+    local Tween = TweenService:Create(LP.Character.HumanoidRootPart, TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear), {CFrame = Pos})
+    Tween:Play()
+    local Stuck = 0
+    repeat
+        task_wait(0.1)
+        Stuck = Stuck + 0.1
+        if not LP.Character or LP.Character.Humanoid.Health <= 0 then Tween:Cancel() break end
+    until Distance < 10 or Stuck > 20 or Tween.PlaybackState ~= Enum.PlaybackState.Playing
+end
+
+-- ==================================================================
+-- [4] FARMING LOOP
+-- ==================================================================
+task_spawn(function()
+    while true do
+        task_wait()
+        if not getgenv().Config.FarmChests then StatusLbl.Text = "Farming Disabled" task_wait(1) continue end
+        local Chests = GetChests()
+        if #Chests == 0 then StatusLbl.Text = "No Chests! Hopping..." ServerHop("No Chests") task_wait(5) continue end
+        
+        StatusLbl.Text = "Farming (" .. #Chests .. " Left)..."
+        for _, Chest in pairs(Chests) do
+            if not Chest or not Chest.Parent then continue end
+            if ChestCache[Chest] then continue end
+            
+            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                TP(Chest.CFrame + Vector3.new(0, 5, 0))
+                task_wait(getgenv().Config.CollectionWait or 0.1)
+                
+                if not Chest.Parent then
+                    -- UPDATE STATS & MONEY UI
+                    getgenv().Stats.Chests = (getgenv().Stats.Chests or 0) + 1
+                    ChestsLbl.Text = "Chests: " .. getgenv().Stats.Chests
+                    
+                    local cur = LP.Data.Beli.Value
+                    local start = getgenv().Stats.StartMoney or cur
+                    EarnedLbl.Text = "Money: $" .. (cur - start)
+                    
+                    ChestCache[Chest] = true
+                end
+            end
+        end
+    end
+end)
+
+-- Buttons
+ToggleBtn.MouseButton1Click:Connect(function() Farming = not Farming; ToggleBtn.Text = Farming and "ON" or "OFF"; ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
+HopBtn.MouseButton1Click:Connect(function() Hopping = false; ServerHop("Manual") end)
+AFKBtn.MouseButton1Click:Connect(function() BlurFrame.Visible = not BlurFrame.Visible; AFKBtn.BackgroundColor3 = BlurFrame.Visible and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
+RenderBtn.MouseButton1Click:Connect(function() Config.Disable3DRender = not Config.Disable3DRender; local State = Config.Disable3DRender; RenderBtn.Text = State and "3d Rend: ON" or "3d Rend: OFF"; RenderBtn.BackgroundColor3 = State and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40); pcall(function() RunService:Set3dRenderingEnabled(not State) end) end)
+
+task_spawn(function() task_wait(2); SendWebhook("Start") end)a
