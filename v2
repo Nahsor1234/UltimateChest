@@ -189,40 +189,34 @@ end)
 
 
 
--- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
--- [Fixes: Global Config, Shared Stats, Drag Function, Webhook Order]
+
+-- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL CONFIG LOADER] //
+-- [Role: Stores URL & Stats for Chunk 2]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait() until game.Players.LocalPlayer
 repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
 
 local game = game
-local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
 local VirtualUser = game:GetService("VirtualUser")
 local UserInputService = game:GetService("UserInputService")
-local GuiService = game:GetService("GuiService")
+local LP = Players.LocalPlayer
 
 local task_wait, task_spawn = task.wait, task.spawn
 local math_floor, math_huge = math.floor, math.huge
 local os_time, os_date = os.time, os.date
 
-local LP = Players.LocalPlayer
-local PlayerGui = LP:WaitForChild("PlayerGui")
-
 -- ==================================================================
--- [1] CONFIGURATION (MUST BE TOP)
+-- [1] CONFIGURATION (WEBHOOK URL IS HERE 👇)
 -- ==================================================================
-
--- 1. Defaults
 local Config = {
+    -- This is the "Fuel" for the Webhook Engine in Chunk 2
     WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
+    
     TweenSpeed = 350,       
     CollectionWait = 0.05, 
     MaxTime = 120,
@@ -238,7 +232,7 @@ local Config = {
     MaxFarmDistance = 4000
 }
 
--- 2. File Overwrite
+-- File Overwrite Logic
 local FileName = "NahsorConfig.json"
 if isfile(FileName) then
     pcall(function()
@@ -251,61 +245,23 @@ if isfile(FileName) then
     end)
 end
 
--- 3. Legacy Support
+-- Legacy Support
 pcall(function()
     if getgenv and getgenv().UserConfig then
         for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
     end
 end)
 
--- 4. MAKE GLOBAL (CRITICAL FOR CHUNK 2)
+-- [CRITICAL] Share Config Globally (So Chunk 2 can see the URL)
 getgenv().Config = Config 
 
 -- ==================================================================
--- [2] WEBHOOK SYSTEM
+-- [2] SHARED STATS & TOOLS
 -- ==================================================================
-
-
-
--- ==================================================================
--- [3] VARIABLES & SHARED STATS
--- ==================================================================
-
--- [CRITICAL FIX] Stats must be Global so Chunk 2 (UI) can read them
 getgenv().Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
 pcall(function() getgenv().Stats.StartMoney = LP.Data.Beli.Value end)
 
-local ChestCache = {}
-local VisitedChests = {} 
-local CollectedPositions = {}
-local CollectedFruits = {} 
-local Farming, IsMoving, Hopping = true, false, false
-local LastMoveTime = os_time()
-local LastPos = Vector3.new(0,0,0)
-local RareItems = {"God's Chalice", "Fist of Darkness"}
-local LastCacheRefresh = 0
-
--- [4] AUTO TEAM SELECT
-task_spawn(function()
-    repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
-    local attempts = 0
-    while attempts < 60 do 
-        if LP.Team and LP.Team.Name == "Pirates" then break end
-        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
-        attempts = attempts + 1
-        task_wait(1)
-    end
-end)
-
--- [5] ANTI-AFK
-LP.Idled:Connect(function()
-    pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new(0,0))
-    end)
-end)
-
--- [CRITICAL FIX] MakeDraggable must be Global for Chunk 2
+-- Global UI Dragger
 getgenv().MakeDraggable = function(gui)
     local dragging, dragInput, dragStart, startPos
     local function update(input)
@@ -324,7 +280,31 @@ getgenv().MakeDraggable = function(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- [6] FAST MODE
+-- ==================================================================
+-- [3] SETUP HELPERS
+-- ==================================================================
+
+-- Anti-AFK
+LP.Idled:Connect(function()
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0,0))
+    end)
+end)
+
+-- Auto Team
+task_spawn(function()
+    repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+    local attempts = 0
+    while attempts < 60 do 
+        if LP.Team and LP.Team.Name == "Pirates" then break end
+        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
+        attempts = attempts + 1
+        task_wait(1)
+    end
+end)
+
+-- Fast Mode
 local function ApplyFastMode()
     if Config.UltraFastMode then return end
     if not Config.FastMode then return end
@@ -339,7 +319,7 @@ local function ApplyFastMode()
     workspace.DescendantAdded:Connect(Fastify)
 end
 
--- [7] ULTRA FAST MODE
+-- Ultra Fast Mode
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     pcall(function()
@@ -367,7 +347,6 @@ task_spawn(function()
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
 end)
-
 
 
 
