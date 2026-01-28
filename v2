@@ -192,6 +192,58 @@ end)
  -- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
 -- [Fixes: Global Config, Shared Stats, Drag Function, Webhook Order]
 
+-- // NAHSOR UNIFIED WEBHOOK SYSTEM //
+-- [Status: STANDALONE | Proxy-Ready | Safe-Math]
+
+getgenv().SendWebhook = function(msg)
+    local Config = getgenv().Config
+    if not Config or not Config.WebhookURL or Config.WebhookURL == "" then return end
+
+    task.spawn(function()
+        -- Support for all executors (Arceus, Delta, Fluxus, etc.)
+        local request = http_request or request or HttpPost or syn.request
+        if not request then return end
+
+        -- Safe data gathering to prevent "nil" crashes found in logs
+        local currentBeli = 0
+        pcall(function() currentBeli = game.Players.LocalPlayer.Data.Beli.Value end)
+        
+        local stats = getgenv().Stats or {Chests = 0, StartMoney = currentBeli, StartTime = os.time()}
+        local duration = os.time() - (stats.StartTime or os.time())
+        local profit = currentBeli - (stats.StartMoney or currentBeli)
+        
+        local timeStr = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
+
+        local Data = {
+            ["embeds"] = {{
+                ["title"] = (msg == "Start" and "🟢 SCRIPT STARTED") or "💰 SERVER REPORT",
+                ["description"] = "**Player:** " .. game.Players.LocalPlayer.Name ..
+                                  "\n**Time Running:** " .. timeStr ..
+                                  "\n**Chests Collected:** " .. tostring(stats.Chests or 0) ..
+                                  "\n**Total Profit:** $" .. tostring(profit) ..
+                                  "\n**Status:** " .. (msg or "Farming"),
+                ["color"] = (msg == "Start" and 65535) or 65280,
+                ["footer"] = { ["text"] = "Nahsor ChestHub Unified" }
+            }}
+        }
+
+        -- Sends directly to proxy without "discord" name filters
+        pcall(function() 
+            request({
+                Url = Config.WebhookURL, 
+                Body = game:GetService("HttpService"):JSONEncode(Data), 
+                Method = "POST", 
+                Headers = {["Content-Type"] = "application/json"}
+            }) 
+        end)
+    end)
+end
+
+print("✅ Unified Webhook Loaded. Now run your v2 script.")
+
+
+
+
 if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait() until game.Players.LocalPlayer
 repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
