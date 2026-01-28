@@ -646,10 +646,6 @@ end)
 
                             
         
-
-
-
-
 -- // NAHSOR CHESTHUB V14.9 - CHUNK 3 //
 -- [FIX: Fruit Name UI + SAVER Button + Syntax Repairs]
 
@@ -663,7 +659,7 @@ end)
 local Divider = Instance.new("Frame", MainFrame)
 Divider.BackgroundColor3, Divider.BorderSizePixel, Divider.Size, Divider.LayoutOrder, Divider.ZIndex = Color3.fromRGB(60, 60, 60), 0, UDim2.new(1, 0, 0, 1), 6, 11
 local BtnRow = Instance.new("Frame", MainFrame)
-BtnRow.BackgroundTransparency, BtnRow.Size, BtnRow.LayoutOrder, BtnRow.ZIndex = 1, UDim2.new(, 0, 0, 24), 7, 11
+BtnRow.BackgroundTransparency, BtnRow.Size, BtnRow.LayoutOrder, BtnRow.ZIndex = 1, UDim2.new(1, 0, 0, 24), 7, 11
 local ToggleBtn = Instance.new("TextButton", BtnRow)
 ToggleBtn.Text, ToggleBtn.BackgroundColor3, ToggleBtn.Size, ToggleBtn.ZIndex = "ON", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), 12
 Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
@@ -875,4 +871,5 @@ task.spawn(function()
         end
     end
 end)
+
 
