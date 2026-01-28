@@ -222,7 +222,7 @@ local PlayerGui = LP:WaitForChild("PlayerGui")
 
 -- 1. Defaults
 local Config = {
-    WebhookURL = "https://discord.com/api/webhooks/1462804070728335370/Z2THKlk_RNm-R144EMLiLe9FTowNStytcgX5Vyprzb5LHTUqT3o72O-SVejkR_mcUure",
+    WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
     TweenSpeed = 350,       
     CollectionWait = 0.05, 
     MaxTime = 120,
