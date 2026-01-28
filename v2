@@ -188,7 +188,8 @@ end)
 
 
 
--- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
+
+ -- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
 -- [Fixes: Global Config, Shared Stats, Drag Function, Webhook Order]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -365,7 +366,8 @@ task_spawn(function()
     task_wait(1)
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
-end)
+end)   
+
 
 
 
