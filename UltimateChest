@@ -189,12 +189,8 @@ end)
 
 
 
-
-
-
-
 -- // NAHSOR CHESTHUB V14.9 - CHUNK 1 [FIXED SETUP] //
--- [Status: WORKING | Config & Stats Loaded]
+-- [Status: WORKING | Config & Stats Loaded | Typos Fixed]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait() until game.Players.LocalPlayer
@@ -355,6 +351,8 @@ end)
 
 
 
+
+
 -- // NAHSOR CHESTHUB V14.9 - CHUNK 2 [COMPLETE ENGINE] //
 -- [Includes: Webhook, UI, Buttons, Farming Logic]
 
@@ -374,7 +372,7 @@ local math_floor, math_huge = math.floor, math.huge
 local os_time = os.time
 
 -- ==================================================================
--- [1] WEBHOOK SYSTEM
+-- [1] WEBHOOK SYSTEM (Universal)
 -- ==================================================================
 local function SendWebhook(msg)
     if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then return end
@@ -387,7 +385,7 @@ local function SendWebhook(msg)
         pcall(function() currentBeli = LP.Data.Beli.Value end)
         
         local stats = getgenv().Stats or {StartTime = os_time(), StartMoney = currentBeli, Chests = 0}
-        local duration = os_time() - (stats.StartTime or os_time())
+        local duration = os_time() - (stats.StartTime or os.time())
         local timeString = string.format("%02d:%02d:%02d", math_floor(duration/3600), math_floor((duration%3600)/60), duration%60)
         local earned = currentBeli - (stats.StartMoney or 0)
         
@@ -491,7 +489,7 @@ local AFKBtn = Instance.new("TextButton", ExtraRow)
 AFKBtn.Text, AFKBtn.BackgroundColor3, AFKBtn.Size = "AFK", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0)
 Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
 local RenderBtn = Instance.new("TextButton", ExtraRow)
-RenderBtn.Text, RenderBtn.BackgroundColor3, RenderBtn.Size, RenderBtn.Position = "3D: OFF", Color3.fromRGB(180, 40, 40), UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0)
+RenderBtn.Text, RenderBtn.BackgroundColor3, RenderBtn.Size, RenderBtn.Position = "3d Rend: ON", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0)
 Instance.new("UICorner", RenderBtn).CornerRadius = UDim.new(0, 6)
 
 local BlurFrame = Instance.new("Frame", ScreenGui)
@@ -581,7 +579,7 @@ local function ServerHop(Reason)
 end
 
 -- ==================================================================
--- [4] FARMING LOGIC (MERGED FROM CHUNK 3)
+-- [4] FARMING LOGIC
 -- ==================================================================
 local function StoreFruit(fruit)
     if not fruit or not fruit:FindFirstChild("Handle") then return end
@@ -672,17 +670,28 @@ end
 ToggleBtn.MouseButton1Click:Connect(function() Farming = not Farming; ToggleBtn.Text = Farming and "ON" or "OFF"; ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
 HopBtn.MouseButton1Click:Connect(function() Hopping = false; ServerHop("Manual") end)
 AFKBtn.MouseButton1Click:Connect(function() BlurFrame.Visible = not BlurFrame.Visible; AFKBtn.BackgroundColor3 = BlurFrame.Visible and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
-RenderBtn.MouseButton1Click:Connect(function() Config.Disable3DRender = not Config.Disable3DRender; RenderBtn.Text = Config.Disable3DRender and "3D: OFF" or "3D: ON"; pcall(function() RunService:Set3dRenderingEnabled(not Config.Disable3DRender) end) end)
+
+-- Initial Render Button State check
+if Config.Disable3DRender then
+    RenderBtn.Text = "3d Rend: ON"
+    RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
+    pcall(function() RunService:Set3dRenderingEnabled(false) end)
+else
+    RenderBtn.Text = "3d Rend: OFF"
+    RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    pcall(function() RunService:Set3dRenderingEnabled(true) end)
+end
+
+RenderBtn.MouseButton1Click:Connect(function() 
+    Config.Disable3DRender = not Config.Disable3DRender
+    local State = Config.Disable3DRender
+    RenderBtn.Text = State and "3d Rend: ON" or "3d Rend: OFF"
+    RenderBtn.BackgroundColor3 = State and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
+    pcall(function() RunService:Set3dRenderingEnabled(not State) end) 
+end)
 
 -- Loops
 task_spawn(function() while true do if Farming and not Hopping then pcall(MainFarm) end task_wait(0.1) end end)
 task_spawn(function() while true do TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor((os_time()-Stats.StartTime)/3600), math_floor(((os_time()-Stats.StartTime)%3600)/60), (os_time()-Stats.StartTime)%60); task_wait(1) end end)
 task_spawn(function() task_wait(2); SendWebhook("Start") end)
-
-
-
-
-
-
-
 
