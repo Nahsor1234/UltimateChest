@@ -390,7 +390,72 @@ local GuiService = game:GetService("GuiService")
 -- ==================================================================
 -- [1] ROBUST WEBHOOK SYSTEM (MATCHING THE WORKING TEST SCRIPT)
 -- ==================================================================
+-- // NAHSOR LOG GENERATOR & WEBHOOK FIXER //
+-- [Status: STANDALONE | Monitor: Chests, Money, Time, Fruits]
 
+task.spawn(function()
+    -- [1] WAIT FOR INITIALIZATION
+    -- This prevents the "nil" errors seen in your debug logs
+    repeat task.wait(1) until getgenv().Config and getgenv().Stats
+    local LP = game:GetService("Players").LocalPlayer
+    
+    -- [2] THE UNIFIED LOGGING FUNCTION
+    getgenv().SendWebhook = function(msg)
+        local url = getgenv().Config.WebhookURL
+        if not url or url == "" then return end
+
+        task.spawn(function()
+            -- Universal Request (Delta/Codex/Arceus/Fluxus)
+            local request = http_request or request or HttpPost or syn.request
+            if not request then return end
+
+            -- [3] DATA COLLECTION (Safe-Math Logic)
+            local currentMoney = 0
+            pcall(function() currentMoney = LP.Data.Beli.Value end)
+            
+            local stats = getgenv().Stats
+            local startMoney = stats.StartMoney or currentMoney
+            local sessionProfit = currentMoney - startMoney
+            local chests = stats.Chests or 0
+            
+            -- Timer Formatting
+            local duration = os.time() - (stats.StartTime or os.time())
+            local timeStr = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
+
+            -- [4] GENERATE LOG EMBED
+            local Data = {
+                ["embeds"] = {{
+                    ["title"] = (msg == "Start" and "🟢 LOG SESSION STARTED") or "💰 LOG REPORT: FARM FINISHED",
+                    ["color"] = (msg == "Start" and 65535) or 65280,
+                    ["fields"] = {
+                        {["name"] = "👤 Player Name", ["value"] = "||" .. LP.Name .. "||", ["inline"] = true},
+                        {["name"] = "⏱️ Session Timer", ["value"] = timeStr, ["inline"] = true},
+                        {["name"] = "📦 Chests Collected", ["value"] = tostring(chests), ["inline"] = true},
+                        {["name"] = "💵 Session Profit", ["value"] = "$" .. tostring(sessionProfit), ["inline"] = true},
+                        {["name"] = "💰 Total Money", ["value"] = "$" .. tostring(currentMoney), ["inline"] = true},
+                        {["name"] = "📜 Log Status/Fruit", ["value"] = tostring(msg or "Server Hopping..."), ["inline"] = false}
+                    },
+                    ["footer"] = { ["text"] = "Nahsor ChestHub Log Generator V15.9" },
+                    ["timestamp"] = os.date("!*t")
+                }}
+            }
+
+            -- [5] SEND (Bypasses "discord" name filter)
+            pcall(function()
+                request({
+                    Url = url,
+                    Body = game:GetService("HttpService"):JSONEncode(Data),
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"}
+                })
+            end)
+        end)
+    end
+
+    -- Initial Start Log
+    getgenv().SendWebhook("Start")
+    print("✅ Log Generator Active. Monitoring Money and Chests...")
+end)
 -- ==================================================================
 -- [2] UI CONSTRUCTION (CRASH PROOF)
 -- ==================================================================
