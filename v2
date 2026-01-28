@@ -620,7 +620,106 @@ task.spawn(function()
     SendWebhook("Start")
 end)
 
+-- // PASTING THIS AT THE BOTTOM OF CHUNK 2 ADDS THE MOVEMENT LOGIC //
 
+-- [A] MOVEMENT FUNCTIONS
+local function GetChests()
+    local Ret = {}
+    for _, v in pairs(workspace:GetChildren()) do
+        if v.Name == "Chest1" or v.Name == "Chest2" or v.Name == "Chest3" then
+            table.insert(Ret, v)
+        end
+    end
+    return Ret
+end
+
+local function TP(Pos)
+    -- Calculate Distance
+    local Distance = (Pos.Position - LP.Character.HumanoidRootPart.Position).Magnitude
+    local Speed = getgenv().Config.TweenSpeed or 350
+    
+    -- Create Tween
+    local Tween = game:GetService("TweenService"):Create(
+        LP.Character.HumanoidRootPart,
+        TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear),
+        {CFrame = Pos}
+    )
+    Tween:Play()
+    
+    -- Safety: If stuck, cancel
+    local StuckCheck = 0
+    repeat
+        task.wait(0.1)
+        StuckCheck = StuckCheck + 0.1
+        if LP.Character.Humanoid.Health <= 0 then Tween:Cancel() break end
+        -- Webhook: If you find a fruit, it will auto-send here if configured
+    until Distance < 10 or StuckCheck > 20 or not Tween.PlaybackState == Enum.PlaybackState.Playing
+end
+
+-- [B] MAIN FARMING LOOP
+task.spawn(function()
+    while true do
+        task.wait()
+        
+        -- 1. Check if we should be farming
+        if not getgenv().Config.FarmChests then 
+            StatusLbl.Text = "Farming Disabled"
+            task.wait(1)
+            continue 
+        end
+        
+        -- 2. Find Valid Chests
+        local Chests = GetChests()
+        if #Chests == 0 then
+            -- NO CHESTS LEFT -> HOP SERVER
+            StatusLbl.Text = "Server Empty! Hopping..."
+            ServerHop("No Chests")
+            task.wait(5) -- Wait for hop
+            continue
+        end
+        
+        -- 3. Farm the Chests
+        StatusLbl.Text = "Farming (" .. #Chests .. " Left)..."
+        
+        for _, Chest in pairs(Chests) do
+            if not Chest or not Chest.Parent then continue end
+            if ChestCache[Chest] then continue end -- Skip if we already took it
+            
+            -- Go to Chest
+            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                TP(Chest.CFrame + Vector3.new(0, 5, 0)) -- Teleport slightly above
+                
+                -- Wait for Collection
+                task.wait(getgenv().Config.CollectionWait or 0.1)
+                
+                -- Update Stats
+                if not Chest.Parent then -- It disappeared (We got it!)
+                    getgenv().Stats.Chests = (getgenv().Stats.Chests or 0) + 1
+                    ChestsLbl.Text = "Chests: " .. getgenv().Stats.Chests
+                    
+                    -- Calculate Money Earned
+                    local current = LP.Data.Beli.Value
+                    local start = getgenv().Stats.StartMoney or current
+                    EarnedLbl.Text = "Money: $" .. (current - start)
+                    
+                    ChestCache[Chest] = true
+                end
+            end
+        end
+    end
+end)
+
+-- [C] TIMER LOOP (Updates the Time Label)
+task.spawn(function()
+    while true do
+        task.wait(1)
+        local duration = os.time() - (getgenv().Stats.StartTime or os.time())
+        local h = math.floor(duration / 3600)
+        local m = math.floor((duration % 3600) / 60)
+        local s = duration % 60
+        TimerLbl.Text = string.format("Time: %02d:%02d:%02d", h, m, s)
+    end
+end)
 
                             
         
