@@ -1,0 +1,532 @@
+-- // NAHSOR CONFIG MANAGER V9 [PERFECTED LAYOUT] //
+-- [Features: Right-Side Inputs | Grouped Order | Sleek UI]
+
+local Players = game:GetService("Players")
+local Http = game:GetService("HttpService")
+local Input = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LP = Players.LocalPlayer
+local FileName = "NahsorConfig.json"
+
+-- [1] DEFAULT CONFIG
+local Config = {
+    Disable3DRender = true, AFKMode = true, FastMode = true, UltraFastMode = false,
+    FarmChests = true, StopOnRareItem = true,
+    MaxTime = 120, TweenSpeed = 350, MaxFarmDistance = 4000, HopDelay = 8,
+    FPSLimit = 60
+}
+
+-- [2] SAVE/LOAD
+local function Save() pcall(function() writefile(FileName, Http:JSONEncode(Config)) end) end
+if isfile(FileName) then pcall(function() local d = Http:JSONDecode(readfile(FileName)) for k,v in pairs(d) do Config[k]=v end end) end
+
+-- [3] UI SETUP
+local GuiName = "NahsorConfig_V9"
+pcall(function() if LP.PlayerGui:FindFirstChild(GuiName) then LP.PlayerGui[GuiName]:Destroy() end end)
+local Gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui")); Gui.Name = GuiName
+
+local function Create(cls, props) local inst = Instance.new(cls); for k,v in pairs(props) do inst[k] = v end; return inst end
+local function Tween(obj, props, time, style, dir)
+    TweenService:Create(obj, TweenInfo.new(time or 0.3, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out), props):Play()
+end
+
+-- [4] FLOATING BUTTON
+local OpenBtn = Create("TextButton", {
+    Parent=Gui, Size=UDim2.new(0,40,0,40), Position=UDim2.new(0.05,0,0.4,0),
+    BackgroundColor3=Color3.fromRGB(18,18,18), Text="⚙", TextSize=22,
+    TextColor3=Color3.fromRGB(240,240,240), AutoButtonColor=false, Font=Enum.Font.GothamBold
+})
+Create("UICorner", {Parent=OpenBtn, CornerRadius=UDim.new(0,10)})
+Create("UIStroke", {Parent=OpenBtn, Color=Color3.fromRGB(60,60,60), Thickness=1.5})
+
+-- Drag Logic
+local drag, startPos
+OpenBtn.InputBegan:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then
+        drag=i.Position; startPos=OpenBtn.Position
+        Tween(OpenBtn, {BackgroundColor3=Color3.fromRGB(40,40,40)}, 0.2)
+        i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then drag=nil; Tween(OpenBtn, {BackgroundColor3=Color3.fromRGB(18,18,18)}, 0.2) end end)
+    end
+end)
+Input.InputChanged:Connect(function(i)
+    if (i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseMovement) and drag then
+        local d=i.Position-drag; local t = UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y)
+        TweenService:Create(OpenBtn, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {Position=t}):Play()
+    end
+end)
+
+-- [5] MAIN MENU
+local Main = Create("Frame", {
+    Parent=Gui, Visible=false, Size=UDim2.new(0,280,0,380),
+    Position=UDim2.new(0.5,0,0.5,0), AnchorPoint=Vector2.new(0.5,0.5),
+    BackgroundColor3=Color3.fromRGB(12,12,12), BackgroundTransparency=0, ClipsDescendants=true
+})
+Create("UICorner", {Parent=Main, CornerRadius=UDim.new(0,10)})
+Create("UIStroke", {Parent=Main, Color=Color3.fromRGB(40,40,40), Thickness=1})
+
+-- Header
+local Header = Create("Frame", {Parent=Main, Size=UDim2.new(1,0,0,40), BackgroundColor3=Color3.fromRGB(18,18,18), BorderSizePixel=0})
+Create("TextLabel", {
+    Parent=Header, Size=UDim2.new(1,-15,1,0), Position=UDim2.new(0,15,0,0), BackgroundTransparency=1,
+    Text="NAHSOR CONFIG", TextColor3=Color3.fromRGB(255,255,255), TextSize=13, Font=Enum.Font.GothamBold, TextXAlignment=Enum.TextXAlignment.Left
+})
+Create("Frame", {Parent=Header, Size=UDim2.new(1,0,0,1), Position=UDim2.new(0,0,1,-1), BackgroundColor3=Color3.fromRGB(0,255,200), BorderSizePixel=0})
+
+-- Footer
+local Footer = Create("Frame", {
+    Parent=Main, Size=UDim2.new(1,0,0,45), Position=UDim2.new(0,0,1,-45),
+    BackgroundColor3=Color3.fromRGB(18,18,18), BorderSizePixel=0
+})
+Create("Frame", {Parent=Footer, Size=UDim2.new(1,0,0,1), BackgroundColor3=Color3.fromRGB(35,35,35), BorderSizePixel=0})
+local DescLbl = Create("TextLabel", {
+    Parent=Footer, Size=UDim2.new(1,-20,1,-4), Position=UDim2.new(0,10,0,4),
+    BackgroundTransparency=1, Text="Tap [?] to see what a setting does.",
+    TextColor3=Color3.fromRGB(120,120,120), TextSize=11, Font=Enum.Font.Gotham, 
+    TextWrapped=true, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top
+})
+
+-- Scroll
+local Scroll = Create("ScrollingFrame", {
+    Parent=Main, Size=UDim2.new(1,0,1,-85), Position=UDim2.new(0,0,0,40),
+    BackgroundTransparency=1, ScrollBarThickness=2, CanvasSize=UDim2.new(0,0,0,0), ScrollBarImageColor3=Color3.fromRGB(80,80,80)
+})
+local List = Create("UIListLayout", {Parent=Scroll, Padding=UDim.new(0,0), SortOrder=Enum.SortOrder.LayoutOrder})
+List:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() Scroll.CanvasSize = UDim2.new(0,0,0,List.AbsoluteContentSize.Y) end)
+
+-- [6] OPTION GENERATOR
+local function AddOption(name, key, type, info)
+    local Row = Create("Frame", {Parent=Scroll, Size=UDim2.new(1,0,0,40), BackgroundTransparency=1})
+    Create("Frame", {Parent=Row, Size=UDim2.new(1,-20,0,1), Position=UDim2.new(0,10,1,-1), BackgroundColor3=Color3.fromRGB(25,25,25), BorderSizePixel=0})
+    
+    -- Label
+    Create("TextLabel", {
+        Parent=Row, Size=UDim2.new(0.6,0,1,0), Position=UDim2.new(0,15,0,0), BackgroundTransparency=1,
+        Text=name, TextColor3=Color3.fromRGB(200,200,200), TextSize=12, Font=Enum.Font.GothamMedium, TextXAlignment=Enum.TextXAlignment.Left
+    })
+    
+    -- [?] Info Button (Positioned exactly right of the Text)
+    local InfoBtn = Create("TextButton", {
+        Parent=Row, Size=UDim2.new(0,20,0,20), Position=UDim2.new(0,140,0.5,-10),
+        BackgroundTransparency=1, Text="?", TextColor3=Color3.fromRGB(80,80,80), TextSize=12, Font=Enum.Font.GothamBold
+    })
+    InfoBtn.MouseButton1Click:Connect(function() DescLbl.Text = info; Tween(DescLbl, {TextColor3=Color3.fromRGB(255,255,255)}, 0.2); task.wait(0.3); Tween(DescLbl, {TextColor3=Color3.fromRGB(120,120,120)}, 0.5) end)
+
+    if type == "Bool" then
+        local ToggleBg = Create("TextButton", {
+            Parent=Row, Size=UDim2.new(0,36,0,18), Position=UDim2.new(1,-50,0.5,-9),
+            AutoButtonColor=false, Text="", BackgroundColor3=Color3.fromRGB(40,40,40)
+        })
+        Create("UICorner", {Parent=ToggleBg, CornerRadius=UDim.new(1,0)})
+        local Circle = Create("Frame", {
+            Parent=ToggleBg, Size=UDim2.new(0,14,0,14), Position=UDim2.new(0,2,0.5,-7),
+            BackgroundColor3=Color3.fromRGB(255,255,255)
+        })
+        Create("UICorner", {Parent=Circle, CornerRadius=UDim.new(1,0)})
+        
+        local function Update()
+            local on = Config[key]
+            if on then
+                Tween(ToggleBg, {BackgroundColor3=Color3.fromRGB(0,255,200)}, 0.2)
+                Tween(Circle, {Position=UDim2.new(1,-16,0.5,-7)}, 0.2, Enum.EasingStyle.Back)
+            else
+                Tween(ToggleBg, {BackgroundColor3=Color3.fromRGB(40,40,40)}, 0.2)
+                Tween(Circle, {Position=UDim2.new(0,2,0.5,-7)}, 0.2, Enum.EasingStyle.Back)
+            end
+        end
+        ToggleBg.MouseButton1Click:Connect(function() Config[key] = not Config[key]; Update(); Save() end); Update()
+        
+    else
+        -- [RIGHT SIDE INPUT] (Restored V6 Layout)
+        local Box = Create("TextBox", {
+            Parent=Row, Size=UDim2.new(0,50,0,24), Position=UDim2.new(1,-65,0.5,-12),
+            BackgroundColor3=Color3.fromRGB(20,20,20), TextColor3=Color3.fromRGB(0,255,200),
+            Text=tostring(Config[key]), Font=Enum.Font.GothamBold, TextSize=12
+        })
+        Create("UICorner", {Parent=Box, CornerRadius=UDim.new(0,4)})
+        Create("UIStroke", {Parent=Box, Color=Color3.fromRGB(50,50,50), Thickness=1})
+        
+        Box.FocusLost:Connect(function() 
+            local n = tonumber(Box.Text)
+            if n then Config[key]=n; Save(); if key == "FPSLimit" and setfpscap then setfpscap(n) end else Box.Text=tostring(Config[key]) end 
+        end)
+    end
+end
+
+-- [7] MENU ITEMS (Grouped: Toggles Top, Numbers Bottom)
+AddOption("Farm Chests", "FarmChests", "Bool", "Auto-collects treasure chests.")
+AddOption("3D Saver", "Disable3DRender", "Bool", "Turns screen black to save battery.")
+AddOption("AFK Overlay", "AFKMode", "Bool", "Black overlay to prevent burn-in.")
+AddOption("Fast Mode", "FastMode", "Bool", "Reduces texture quality.")
+AddOption("Ultra Fast", "UltraFastMode", "Bool", "Deletes map (Void Mode).")
+AddOption("Stop on Rare", "StopOnRareItem", "Bool", "Stops hopping if God's Chalice found.")
+
+-- Numbers Section (Inputs)
+AddOption("Time Limit", "MaxTime", "Num", "Force hop after X seconds.")
+AddOption("Tween Speed", "TweenSpeed", "Num", "Flight Speed (Higher = Slower).")
+AddOption("Max Dist", "MaxFarmDistance", "Num", "Scan range for chests.")
+AddOption("Hop Delay", "HopDelay", "Num", "Seconds wait before hop.")
+AddOption("FPS Limit", "FPSLimit", "Num", "Locks FPS (e.g. 15, 30, 60).")
+
+-- [8] ANIMATION
+local isOpen = false
+Main.Size = UDim2.new(0,260,0,380) 
+OpenBtn.MouseButton1Click:Connect(function()
+    isOpen = not isOpen
+    if isOpen then
+        Main.Visible = true; Main.Size = UDim2.new(0,260,0,380); Main.BackgroundTransparency = 1
+        Tween(Main, {Size=UDim2.new(0,280,0,400), BackgroundTransparency=0}, 0.35, Enum.EasingStyle.Back)
+        for _,v in pairs(Main:GetDescendants()) do if v:IsA("TextLabel") or v:IsA("TextBox") then v.TextTransparency=1; Tween(v, {TextTransparency=0}, 0.2) end end
+    else
+        Tween(Main, {Size=UDim2.new(0,260,0,380), BackgroundTransparency=1}, 0.2)
+        for _,v in pairs(Main:GetDescendants()) do if v:IsA("TextLabel") or v:IsA("TextBox") then Tween(v, {TextTransparency=1}, 0.1) end end
+        task.wait(0.2); Main.Visible = false
+    end
+end)
+
+
+
+
+-- // NAHSOR CHESTHUB V15.0 - CHUNK 1 [MONEY FIX] //
+-- [Status: WAITS for Money Data to Load]
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+repeat task.wait() until game.Players.LocalPlayer
+repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+
+-- [1] CONFIGURATION
+local Config = {
+    WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
+    TweenSpeed = 350,       
+    CollectionWait = 0.05, 
+    MaxTime = 120,
+    Disable3DRender = true, 
+    AFKMode = true,
+    FastMode = true,        
+    UltraFastMode = false,
+    StopOnRareItem = true,
+    AdminHop = true, 
+    FarmChests = true,
+    FarmFruit = true,
+    HopDelay = 8,
+    MaxFarmDistance = 4000
+}
+
+-- Load Config File
+if isfile("NahsorConfig.json") then
+    pcall(function()
+        local d = HttpService:JSONDecode(readfile("NahsorConfig.json"))
+        for k, v in pairs(d) do if Config[k] ~= nil then Config[k] = v end end
+    end)
+end
+getgenv().Config = Config 
+
+-- [2] CRITICAL MONEY FIX
+-- We wait until Data exists. This prevents the "Money: $0" bug.
+local MoneyValue = 0
+local Success = false
+local Retries = 0
+
+repeat
+    task.wait(0.5)
+    Retries = Retries + 1
+    pcall(function()
+        if LP.Data and LP.Data:FindFirstChild("Beli") then
+            MoneyValue = LP.Data.Beli.Value
+            Success = true
+        end
+    end)
+until Success or Retries > 20
+
+if not Success then warn("[ChestHub] Warning: Could not read Money Data!") end
+
+getgenv().Stats = { 
+    Chests = 0, 
+    StartMoney = MoneyValue, -- Now guaranteed to be correct
+    StartTime = os.time() 
+}
+
+print("[Chunk 1] Loaded! Start Money: $" .. MoneyValue)
+
+-- [3] GLOBAL HELPERS
+local UserInputService = game:GetService("UserInputService")
+getgenv().MakeDraggable = function(gui)
+    local dragging, dragInput, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = gui.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    gui.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end end)
+    UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
+end
+
+
+
+
+
+-- // NAHSOR CHESTHUB V15.0 - CHUNK 2 [ENGINE] //
+-- [Status: Webhook & Money Counter Fixed]
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+
+local task_wait, task_spawn = task.wait, task.spawn
+local math_floor = math.floor
+local os_time = os.time
+
+-- ==================================================================
+-- [1] WEBHOOK SYSTEM (EXTRACTED FROM "BEST" SCRIPT)
+-- ==================================================================
+local function SendWebhook(msg)
+    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then return end
+    
+    task_spawn(function()
+        local request = http_request or request or HttpPost or syn.request
+        if not request then return end
+        
+        -- Safe Money Calculation
+        local currentBeli = 0
+        local startBeli = 0
+        pcall(function() 
+            currentBeli = LP.Data.Beli.Value 
+            startBeli = getgenv().Stats.StartMoney or currentBeli
+        end)
+        
+        local stats = getgenv().Stats or {StartTime = os_time(), Chests = 0}
+        local duration = os_time() - (stats.StartTime or os_time())
+        local timeString = string.format("%02d:%02d:%02d", math_floor(duration/3600), math_floor((duration%3600)/60), duration%60)
+        
+        local isStart = (msg == "Start")
+        local isAlert = (msg and msg ~= "" and not isStart)
+        
+        local Title = "💰 SERVER REPORT"
+        local Color = 65280 -- Green
+        
+        if isAlert then
+            Title = "🚨 RARE ITEM FOUND!"
+            Color = 16711680
+        elseif isStart then
+            Title = "🟢 SCRIPT STARTED"
+            Color = 65535
+        end
+
+        local Embed = {
+            ["title"] = Title,
+            ["description"] = "**Player:** " .. LP.Name .. 
+                              "\n**Time:** " .. timeString .. 
+                              "\n**Chests:** " .. tostring(stats.Chests or 0) .. 
+                              "\n**Profit:** $" .. tostring(currentBeli - startBeli) ..  -- Fixed Calculation
+                              "\n**Status:** " .. (isStart and "Running" or (msg or "Farming")),
+            ["color"] = Color,
+            ["footer"] = { ["text"] = "Nahsor ChestHub V15.0" }
+        }
+        
+        pcall(function() 
+            request({
+                Url = getgenv().Config.WebhookURL, 
+                Body = HttpService:JSONEncode({["embeds"] = {Embed}}), 
+                Method = "POST", 
+                Headers = {["Content-Type"] = "application/json"}
+            }) 
+        end)
+    end)
+end
+getgenv().SendWebhook = SendWebhook
+
+-- ==================================================================
+-- [2] UI CONSTRUCTION
+-- ==================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ChestHub_Core"
+ScreenGui.IgnoreGuiInset = true 
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling 
+pcall(function() if LP.PlayerGui:FindFirstChild("ChestHub_Core") then LP.PlayerGui.ChestHub_Core:Destroy() end ScreenGui.Parent = LP.PlayerGui end)
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
+MainFrame.Size = UDim2.new(0, 180, 0, 0)
+MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+if getgenv().MakeDraggable then getgenv().MakeDraggable(MainFrame) end
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+local Stroke = Instance.new("UIStroke", MainFrame); Stroke.Color = Color3.fromRGB(40, 225, 80); Stroke.Thickness = 1.5
+local UIList = Instance.new("UIListLayout", MainFrame); UIList.SortOrder = Enum.SortOrder.LayoutOrder; UIList.Padding = UDim.new(0, 4)
+local Padding = Instance.new("UIPadding", MainFrame); Padding.PaddingTop = UDim.new(0, 10); Padding.PaddingLeft = UDim.new(0, 10); Padding.PaddingRight = UDim.new(0, 10); Padding.PaddingBottom = UDim.new(0, 10)
+
+local function Label(text, color, order)
+    local l = Instance.new("TextLabel", MainFrame)
+    l.Text, l.TextColor3, l.LayoutOrder = text, color or Color3.fromRGB(220, 220, 220), order
+    l.BackgroundTransparency, l.Size, l.Font, l.TextSize = 1, UDim2.new(1,0,0,16), Enum.Font.GothamBold, 12
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    return l
+end
+
+TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
+ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
+FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
+TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
+EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
+StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
+
+-- Buttons
+local BtnRow = Instance.new("Frame", MainFrame); BtnRow.BackgroundTransparency = 1; BtnRow.Size = UDim2.new(1, 0, 0, 24); BtnRow.LayoutOrder = 7
+local ToggleBtn = Instance.new("TextButton", BtnRow); ToggleBtn.Text = "ON"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40); ToggleBtn.Size = UDim2.new(0.48, 0, 1, 0)
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
+local HopBtn = Instance.new("TextButton", BtnRow); HopBtn.Text = "HOP"; HopBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 220); HopBtn.Size = UDim2.new(0.48, 0, 1, 0); HopBtn.Position = UDim2.new(0.52, 0, 0, 0)
+Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 6)
+
+-- Extra Row
+local ExtraRow = Instance.new("Frame", MainFrame); ExtraRow.BackgroundTransparency = 1; ExtraRow.Size = UDim2.new(1, 0, 0, 24); ExtraRow.LayoutOrder = 8
+local AFKBtn = Instance.new("TextButton", ExtraRow); AFKBtn.Text = "AFK"; AFKBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40); AFKBtn.Size = UDim2.new(0.48, 0, 1, 0)
+Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
+local RenderBtn = Instance.new("TextButton", ExtraRow); RenderBtn.Text = "3D: OFF"; RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40); RenderBtn.Size = UDim2.new(0.48, 0, 1, 0); RenderBtn.Position = UDim2.new(0.52, 0, 0, 0)
+Instance.new("UICorner", RenderBtn).CornerRadius = UDim.new(0, 6)
+
+local BlurFrame = Instance.new("Frame", ScreenGui); BlurFrame.Name = "AFKOverlay"; BlurFrame.Size = UDim2.new(1,0,1,0); BlurFrame.BackgroundColor3 = Color3.fromRGB(0,0,0); BlurFrame.Visible = Config.AFKMode
+
+-- ==================================================================
+-- [3] LOGIC
+-- ==================================================================
+local ChestCache, VisitedChests, CollectedPositions, CollectedFruits = {}, {}, {}, {}
+local Farming, Hopping = true, false
+local LastCacheRefresh = 0
+local RareItems = {"God's Chalice", "Fist of Darkness"}
+
+local function ServerHop(Reason)
+    if Hopping then return end
+    SendWebhook(nil)
+    StatusLbl.Text = "Deep Cleaning RAM..."
+    table.clear(ChestCache); table.clear(VisitedChests)
+    Hopping = true
+    task_wait(3)
+    
+    local PlaceID = game.PlaceId
+    local AllIDs = {}
+    pcall(function() AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json")) end)
+    if not AllIDs or type(AllIDs) ~= "table" then AllIDs = {} end
+    table.insert(AllIDs, game.JobId)
+    pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+
+    local function Scan()
+        local cursor = ""
+        while true do
+            local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. cursor
+            local s, r = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+            if s and r and r.data then
+                for _, v in pairs(r.data) do
+                    local ID = tostring(v.id)
+                    if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
+                        local New = true
+                        for _, old in pairs(AllIDs) do if tostring(old) == ID then New = false end end
+                        if New then
+                            StatusLbl.Text = "Joining Server..."
+                            TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
+                            task_wait(15)
+                        end
+                    end
+                end
+                cursor = r.nextPageCursor or ""
+                if cursor == "" then break end
+            end
+            task_wait(1)
+        end
+    end
+    task_spawn(Scan)
+end
+
+local function GetChests()
+    local Ret = {}
+    for _, v in pairs(Workspace:GetChildren()) do
+        if v.Name == "Chest1" or v.Name == "Chest2" or v.Name == "Chest3" then table.insert(Ret, v) end
+    end
+    return Ret
+end
+
+local function TP(Pos)
+    local Distance = (Pos.Position - LP.Character.HumanoidRootPart.Position).Magnitude
+    local Speed = getgenv().Config.TweenSpeed or 350
+    local Tween = TweenService:Create(LP.Character.HumanoidRootPart, TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear), {CFrame = Pos})
+    Tween:Play()
+    local Stuck = 0
+    repeat
+        task_wait(0.1)
+        Stuck = Stuck + 0.1
+        if not LP.Character or LP.Character.Humanoid.Health <= 0 then Tween:Cancel() break end
+    until Distance < 10 or Stuck > 20 or Tween.PlaybackState ~= Enum.PlaybackState.Playing
+end
+
+-- Main Loop
+task_spawn(function()
+    while true do
+        task_wait()
+        if not getgenv().Config.FarmChests then StatusLbl.Text = "Farming Disabled" task_wait(1) continue end
+        local Chests = GetChests()
+        if #Chests == 0 then StatusLbl.Text = "No Chests! Hopping..." ServerHop("No Chests") task_wait(5) continue end
+        
+        StatusLbl.Text = "Farming (" .. #Chests .. " Left)..."
+        for _, Chest in pairs(Chests) do
+            if not Chest or not Chest.Parent then continue end
+            if ChestCache[Chest] then continue end
+            
+            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                TP(Chest.CFrame + Vector3.new(0, 5, 0))
+                task_wait(getgenv().Config.CollectionWait or 0.1)
+                if not Chest.Parent then
+                    -- UPDATE STATS & MONEY UI
+                    getgenv().Stats.Chests = (getgenv().Stats.Chests or 0) + 1
+                    ChestsLbl.Text = "Chests: " .. getgenv().Stats.Chests
+                    
+                    local cur = LP.Data.Beli.Value
+                    local start = getgenv().Stats.StartMoney or cur
+                    EarnedLbl.Text = "Money: $" .. (cur - start)
+                    
+                    ChestCache[Chest] = true
+                end
+            end
+        end
+    end
+end)
+
+-- Button Logic
+ToggleBtn.MouseButton1Click:Connect(function() Farming = not Farming; ToggleBtn.Text = Farming and "ON" or "OFF"; ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
+HopBtn.MouseButton1Click:Connect(function() Hopping = false; ServerHop("Manual") end)
+AFKBtn.MouseButton1Click:Connect(function() BlurFrame.Visible = not BlurFrame.Visible; AFKBtn.BackgroundColor3 = BlurFrame.Visible and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
+
+-- Render Logic
+if Config.Disable3DRender then
+    RenderBtn.Text = "3d Rend: ON"
+    RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
+    pcall(function() RunService:Set3dRenderingEnabled(false) end)
+else
+    RenderBtn.Text = "3d Rend: OFF"
+    RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    pcall(function() RunService:Set3dRenderingEnabled(true) end)
+end
+
+RenderBtn.MouseButton1Click:Connect(function() 
+    Config.Disable3DRender = not Config.Disable3DRender
+    local State = Config.Disable3DRender
+    RenderBtn.Text = State and "3d Rend: ON" or "3d Rend: OFF"
+    RenderBtn.BackgroundColor3 = State and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
+    pcall(function() RunService:Set3dRenderingEnabled(not State) end) 
+end)
+
+-- Start
+task_spawn(function() task_wait(2); SendWebhook("Start") end)
