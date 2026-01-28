@@ -186,6 +186,105 @@ end)
 
 
 
+-- // NAHSOR FINAL REFINED VERSION //
+-- [No Location | Bounty-Focused | Dual-Send Reliability]
+
+task.spawn(function()
+    repeat task.wait(1) until getgenv().Config and getgenv().Stats
+    
+    local LP = game:GetService("Players").LocalPlayer
+    local WebhookURL = "https://discord.com/api/webhooks/1462804070728335370/Z2THKlk_RNm-R144EMLiLe9FTowNStytcgX5Vyprzb5LHTUqT3o72O-SVejkR_mcUure"
+    local FruitsCollected = {}
+
+    local function AddFruitToList(obj)
+        if obj:IsA("Tool") and (obj.Name:lower():find("fruit") or obj:FindFirstChild("Fruit")) then
+            local cleanName = obj.Name:gsub(" [Ff]ruit", ""):gsub("[Ff]ruit", "")
+            local found = false
+            for _, v in pairs(FruitsCollected) do if v == cleanName then found = true end end
+            if not found then table.insert(FruitsCollected, cleanName) end
+        end
+    end
+
+    LP.Backpack.ChildAdded:Connect(AddFruitToList)
+    if LP.Character then LP.Character.ChildAdded:Connect(AddFruitToList) end
+    LP.CharacterAdded:Connect(function(char) char.ChildAdded:Connect(AddFruitToList) end)
+
+    local function MasterReport()
+        local request = http_request or request or HttpPost or syn.request
+        if not request then return end
+
+        local currentBeli, currentBounty = 0, "0"
+        pcall(function() 
+            currentBeli = LP.Data.Beli.Value 
+            currentBounty = tostring(LP.leaderstats["Bounty/Honor"].Value)
+        end)
+
+        local stats = getgenv().Stats
+        local profit = currentBeli - (stats.StartMoney or currentBeli)
+        local duration = os.time() - (stats.StartTime or os.time())
+        local timeStr = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
+        
+        local displayFruit, sideColor, blockTheme = "None", 8388863, "ini"
+        if #FruitsCollected > 0 then
+            displayFruit = table.concat(FruitsCollected, ", ")
+            sideColor, blockTheme = 16766720, "fix"
+        end
+
+        local textContent = string.format(
+            "```%s\nNAHSOR CHESTHUB\n------------------------------\n" ..
+            "👤 PLAYER  : %s\n⏱️ TIME    : %s\n📦 CHESTS  : %s\n💵 PROFIT  : $%s\n💰 TOTAL   : $%s\n" ..
+            "🍎 FRUIT   : %s\n------------------------------\n" ..
+            "⚔️ BOUNTY   : %s\n```",
+            blockTheme, LP.Name, timeStr, tostring(stats.Chests or 0), tostring(profit), tostring(currentBeli), displayFruit, currentBounty
+        )
+
+        local embedData = {
+            ["title"] = "💠 NAHSOR CHESTHUB",
+            ["color"] = sideColor,
+            ["fields"] = {
+                {["name"] = "👤 PLAYER", ["value"] = "```" .. LP.Name .. "```", ["inline"] = false},
+                {["name"] = "⏱️ UPTIME", ["value"] = "```" .. timeStr .. "```", ["inline"] = true},
+                {["name"] = "📦 CHESTS", ["value"] = "```" .. tostring(stats.Chests or 0) .. "```", ["inline"] = true},
+                {["name"] = "💵 PROFIT", ["value"] = "```$" .. tostring(profit) .. "```", ["inline"] = true},
+                {["name"] = "⚔️ BOUNTY", ["value"] = "```" .. currentBounty .. "```", ["inline"] = true},
+                {["name"] = "🍎 FRUIT FOUND", ["value"] = "```" .. displayFruit .. "```", ["inline"] = false}
+            },
+            ["timestamp"] = os.date("!*t")
+        }
+
+        -- DUAL-SEND LOGIC (Bulletproof Reliability)
+        pcall(function()
+            -- Send the Mobile-Fixed Box
+            request({
+                Url = WebhookURL,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = game:GetService("HttpService"):JSONEncode({["content"] = textContent})
+            })
+            -- Send the Pro Embed
+            request({
+                Url = WebhookURL,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = game:GetService("HttpService"):JSONEncode({["embeds"] = {embedData}})
+            })
+        end)
+    end
+
+    getgenv().SendWebhook = function(msg) if msg == "Start" then MasterReport() end end
+
+    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function(State)
+        if State == Enum.TeleportState.InProgress then
+            MasterReport()
+            task.wait(2)
+        end
+    end)
+end)
+
+
+
+
+
 
 
 
