@@ -259,7 +259,7 @@ pcall(function()
 end)
 
 -- 4. MAKE GLOBAL (CRITICAL FOR CHUNK 2)
-getgenv().Config = Config 
+--getgenv().Config = Config 
 
 -- ==================================================================
 -- [2] WEBHOOK SYSTEM
@@ -392,6 +392,9 @@ local GuiService = game:GetService("GuiService")
 -- [1] ROBUST WEBHOOK SYSTEM (MATCHING THE WORKING TEST SCRIPT)
 -- ==================================================================
 -- [FIXED WEBHOOK SYSTEM FOR V2]
+
+local chests = (getgenv().Stats and getgenv().Stats.Chests) or 0
+
 getgenv().SendWebhook = function(msg)
     local Config = getgenv().Config
     -- Fix 1: No "discord" name check to allow proxies
