@@ -154,15 +154,15 @@ end
 
 -- [7] MENU ITEMS (Grouped: Toggles Top, Numbers Bottom)
 AddOption("Farm Chests", "FarmChests", "Bool", "Auto-collects treasure chests.")
-AddOption("3D Saver", "Disable3DRender", "Bool", "Turns screen black to save battery.")
-AddOption("AFK Overlay", "AFKMode", "Bool", "Black overlay to prevent burn-in.")
+AddOption("3D Rendering", "Disable3DRender", "Bool", "Disable 3d Map Rendering.")
+AddOption("AFK Overlay", "AFKMode", "Bool", "Make The Screen Black.")
 AddOption("Fast Mode", "FastMode", "Bool", "Reduces texture quality.")
 AddOption("Ultra Fast", "UltraFastMode", "Bool", "Deletes map (Void Mode).")
 AddOption("Stop on Rare", "StopOnRareItem", "Bool", "Stops hopping if God's Chalice found.")
 
 -- Numbers Section (Inputs)
 AddOption("Time Limit", "MaxTime", "Num", "Force hop after X seconds.")
-AddOption("Tween Speed", "TweenSpeed", "Num", "Flight Speed (Higher = Slower).")
+AddOption("Tween Speed", "TweenSpeed", "Num", "Flight Speed.")
 AddOption("Max Dist", "MaxFarmDistance", "Num", "Scan range for chests.")
 AddOption("Hop Delay", "HopDelay", "Num", "Seconds wait before hop.")
 AddOption("FPS Limit", "FPSLimit", "Num", "Locks FPS (e.g. 15, 30, 60).")
