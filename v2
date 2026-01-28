@@ -371,32 +371,39 @@ end)
 
 
 
+-- // NAHSOR CHESTHUB V14.6 - CHUNK 2 [FINAL STABLE RELEASE] //
+-- [Structure: Webhook > UI > Logic > Events > Start Trigger]
 
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local GuiService = game:GetService("GuiService")
 
--- // NAHSOR CHESTHUB V14.6 - CHUNK 2 [FINAL RESTORED UI] //
-
--- [1] GLOBAL WEBHOOK TOOL (Self-Contained & Smart)
-getgenv().SendWebhook = function(item)
-    -- Safety Check: Ensure URL exists
+-- ==================================================================
+-- [1] ROBUST WEBHOOK SYSTEM (Safe & Proxy Friendly)
+-- ==================================================================
+local function SendWebhook(msg)
     if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then return end
-
+    
     task.spawn(function()
         local request = http_request or request or HttpPost or syn.request
         if not request then return end
-
-        -- Gather Data safely
+        
         local currentBeli = 0
         pcall(function() currentBeli = LP.Data.Beli.Value end)
         
-        local startTime = getgenv().Stats.StartTime or os.time()
-        local duration = os.time() - startTime
+        -- Safe Stats Access (Prevents startup crashes)
+        local stats = getgenv().Stats or {StartTime = os.time(), StartMoney = currentBeli, Chests = 0}
+        
+        local duration = os.time() - (stats.StartTime or os.time())
         local timeString = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
-        local earned = currentBeli - (getgenv().Stats.StartMoney or 0)
-
-        -- Determine Message Type
-        local isStart = (item == "Start")
-        local isAlert = (item and item ~= "" and not isStart)
-
+        
+        local isAlert = (msg and msg ~= "" and msg ~= "Start")
+        local isStart = (msg == "Start")
+        
         local Title = "💰 SERVER REPORT"
         local Color = 65280 -- Green
         
@@ -412,14 +419,13 @@ getgenv().SendWebhook = function(item)
             ["title"] = Title,
             ["description"] = "**Player:** " .. LP.Name .. 
                               "\n**Time:** " .. timeString .. 
-                              "\n**Chests:** " .. tostring(getgenv().Stats.Chests or 0) .. 
-                              "\n**Money:** $" .. tostring(earned) .. 
-                              "\n**Status:** " .. (isStart and "Running" or (item or "Farming")),
+                              "\n**Chests:** " .. tostring(stats.Chests or 0) .. 
+                              "\n**Money:** $" .. tostring(currentBeli - (stats.StartMoney or 0)) .. 
+                              "\n**Status:** " .. (isStart and "Running" or (msg or "Farming")),
             ["color"] = Color,
             ["footer"] = { ["text"] = "Nahsor ChestHub V14.6" }
         }
-
-        -- Send Request
+        
         pcall(function() 
             request({
                 Url = getgenv().Config.WebhookURL, 
@@ -430,6 +436,58 @@ getgenv().SendWebhook = function(item)
         end)
     end)
 end
+getgenv().SendWebhook = SendWebhook
+
+-- ==================================================================
+-- [2] UI CONSTRUCTION (Must Run BEFORE Logic)
+-- ==================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ChestHub_Core"
+ScreenGui.IgnoreGuiInset = true 
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling 
+pcall(function() if LP.PlayerGui:FindFirstChild("ChestHub_Core") then LP.PlayerGui.ChestHub_Core:Destroy() end ScreenGui.Parent = LP.PlayerGui end)
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- Black Background
+MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
+MainFrame.Size = UDim2.new(0, 180, 0, 0)
+MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+MainFrame.ZIndex = 10 
+if getgenv().MakeDraggable then getgenv().MakeDraggable(MainFrame) end
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+
+local Stroke = Instance.new("UIStroke", MainFrame)
+Stroke.Color = Color3.fromRGB(40, 225, 80) -- Nice Green Border
+Stroke.Thickness = 1.5
+
+local UIList = Instance.new("UIListLayout", MainFrame)
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+UIList.Padding = UDim.new(0, 4)
+local Padding = Instance.new("UIPadding", MainFrame)
+Padding.PaddingTop = UDim.new(0, 10); Padding.PaddingLeft = UDim.new(0, 10); Padding.PaddingRight = UDim.new(0, 10); Padding.PaddingBottom = UDim.new(0, 10)
+
+local function Label(text, color, order)
+    local l = Instance.new("TextLabel", MainFrame)
+    l.Text, l.TextColor3, l.LayoutOrder = text, color or Color3.fromRGB(220, 220, 220), order
+    l.BackgroundTransparency, l.Size, l.Font, l.TextSize = 1, UDim2.new(1,0,0,16), Enum.Font.GothamBold, 12
+    l.TextXAlignment, l.ZIndex = Enum.TextXAlignment.Left, 11
+    return l
+end
+
+-- Define Labels GLOBALLY so Logic can see them
+TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
+ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
+FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
+TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
+EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
+StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
+
+-- ==================================================================
+-- [3] LOGIC & HOPPING
+-- ==================================================================
+local ChestCache, VisitedChests, CollectedPositions = {}, {}, {}
+local Hopping = false
+local RareItems = {"God's Chalice", "Fist of Darkness"}
 
 local function CheckRareItems()
     if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
@@ -439,7 +497,6 @@ local function CheckRareItems()
     return false
 end
 
--- [METHOD 2: BLIND HOP]
 local function BlindHop()
     StatusLbl.Text = "API Bad. Blind Hopping..."
     StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
@@ -450,12 +507,10 @@ local function BlindHop()
     TeleportService:Teleport(game.PlaceId, LP)
 end
 
--- [SERVER HOP LOGIC]
 local function ServerHop(Reason)
     if Hopping then return end
     
-    -- [WEBHOOK] Send Report before hopping
-    getgenv().SendWebhook(nil) -- Normal Report
+    SendWebhook(nil) -- Normal Report
     
     StatusLbl.Text = "Deep Cleaning RAM..."
     table.clear(ChestCache)
@@ -469,8 +524,8 @@ local function ServerHop(Reason)
 
     if getgenv().Config.StopOnRareItem and CheckRareItems() then
         StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
-        getgenv().SendWebhook("God's Chalice / Fist") -- Alert
-        Farming, Hopping = false, true
+        SendWebhook("God's Chalice / Fist")
+        Hopping = true
         return
     end
 
@@ -540,9 +595,11 @@ local function ServerHop(Reason)
     task.spawn(Scan)
 end
 
+-- ==================================================================
+-- [4] EVENTS & START
+-- ==================================================================
 Players.PlayerAdded:Connect(function(v)
     if getgenv().Config.AdminHop and v:IsInGroup(4372130) and v:GetRankInGroup(4372130) > 20 then
-        Farming = false
         ServerHop("Admin Detected")
     end
 end)
@@ -562,56 +619,14 @@ task.spawn(function()
     GuiService.ErrorMessageChanged:Connect(function() Hopping = false; ServerHop("Gui Error") end)
 end)
 
--- [UI SETUP - ORIGINAL VERTICAL LAYOUT]
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ChestHub_Core"
-ScreenGui.IgnoreGuiInset = true 
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling 
-pcall(function() if LP.PlayerGui:FindFirstChild("ChestHub_Core") then LP.PlayerGui.ChestHub_Core:Destroy() end ScreenGui.Parent = LP.PlayerGui end)
-
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- Black Background
-MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
-MainFrame.Size = UDim2.new(0, 180, 0, 0)
-MainFrame.AutomaticSize = Enum.AutomaticSize.Y
-MainFrame.ZIndex = 10 
-if getgenv().MakeDraggable then getgenv().MakeDraggable(MainFrame) end
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
-
-local Stroke = Instance.new("UIStroke", MainFrame)
-Stroke.Color = Color3.fromRGB(40, 225, 80) -- Nice Green Border
-Stroke.Thickness = 1.5
-
-local UIList = Instance.new("UIListLayout", MainFrame)
-UIList.SortOrder = Enum.SortOrder.LayoutOrder
-UIList.Padding = UDim.new(0, 4)
-local Padding = Instance.new("UIPadding", MainFrame)
-Padding.PaddingTop = UDim.new(0, 10); Padding.PaddingLeft = UDim.new(0, 10); Padding.PaddingRight = UDim.new(0, 10); Padding.PaddingBottom = UDim.new(0, 10)
-
-local function Label(text, color, order)
-    local l = Instance.new("TextLabel", MainFrame)
-    l.Text, l.TextColor3, l.LayoutOrder = text, color or Color3.fromRGB(220, 220, 220), order
-    l.BackgroundTransparency, l.Size, l.Font, l.TextSize = 1, UDim2.new(1,0,0,16), Enum.Font.GothamBold, 12
-    l.TextXAlignment, l.ZIndex = Enum.TextXAlignment.Left, 11
-    return l
-end
-
--- Original Vertical List (Clean & Bold)
-TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
-ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
-FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
-TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
-EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
-StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
-
--- [START TRIGGER] (This ensures you get the "Green" Start notification)
+-- [START TRIGGER]
 task.spawn(function()
-    task.wait(2) -- Wait for stats to load
-    if getgenv().SendWebhook then
-        getgenv().SendWebhook("Start")
-    end
+    task.wait(1.5)
+    SendWebhook("Start")
 end)
-    
+
+
+
                             
         
 
