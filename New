@@ -188,12 +188,271 @@ end)
 
 
 
+-- // NAHSOR CHESTHUB V15.5 - CHUNK 1 [CONFIG & SETTINGS UI] //
+-- [Status: RESTORED Settings Button | Loads Config Globally]
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- [1] DEFAULT CONFIGURATION
+local Config = {
+    WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
+    TweenSpeed = 350,       
+    CollectionWait = 0.05, 
+    MaxTime = 120,
+    Disable3DRender = true, 
+    AFKMode = true,
+    FastMode = true,        
+    UltraFastMode = false,
+    StopOnRareItem = true,
+    AdminHop = true, 
+    FarmChests = true,
+    FarmFruit = true,
+    HopDelay = 8,
+    MaxFarmDistance = 4000
+}
+
+-- Load Settings File
+if isfile("NahsorConfig.json") then
+    pcall(function()
+        local d = HttpService:JSONDecode(readfile("NahsorConfig.json"))
+        for k, v in pairs(d) do if Config[k] ~= nil then Config[k] = v end end
+        print("[Chunk 1] Settings Loaded from File")
+    end)
 end
 
+-- Share Config Globally
+getgenv().Config = Config
+
+-- [2] RESTORED SETTINGS UI (The Gear Button)
+local GuiName = "NahsorConfig_V9"
+pcall(function() if LP.PlayerGui:FindFirstChild(GuiName) then LP.PlayerGui[GuiName]:Destroy() end end)
+local Gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui")); Gui.Name = GuiName; Gui.ResetOnSpawn = false
+
+local function Create(cls, props) local inst = Instance.new(cls); for k,v in pairs(props) do inst[k] = v end; return inst end
+local function Tween(obj, props, time) TweenService:Create(obj, TweenInfo.new(time or 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play() end
+
+-- Floating Button
+local OpenBtn = Create("TextButton", {
+    Parent=Gui, Size=UDim2.new(0,40,0,40), Position=UDim2.new(0.02,0,0.3,0),
+    BackgroundColor3=Color3.fromRGB(18,18,18), Text="⚙", TextSize=22,
+    TextColor3=Color3.fromRGB(240,240,240), AutoButtonColor=false, Font=Enum.Font.GothamBold
+})
+Create("UICorner", {Parent=OpenBtn, CornerRadius=UDim.new(0,10)})
+Create("UIStroke", {Parent=OpenBtn, Color=Color3.fromRGB(60,60,60), Thickness=1.5})
+
+-- Menu Frame
+local Main = Create("Frame", {
+    Parent=Gui, Visible=false, Size=UDim2.new(0,260,0,300),
+    Position=UDim2.new(0.5,0,0.5,0), AnchorPoint=Vector2.new(0.5,0.5),
+    BackgroundColor3=Color3.fromRGB(12,12,12), BackgroundTransparency=0
+})
+Create("UICorner", {Parent=Main, CornerRadius=UDim.new(0,10)})
+Create("UIStroke", {Parent=Main, Color=Color3.fromRGB(40,40,40), Thickness=1})
+Create("TextLabel", {Parent=Main, Text="NAHSOR SETTINGS", TextColor3=Color3.fromRGB(255,255,255), Size=UDim2.new(1,0,0,30), BackgroundTransparency=1})
+
+-- Toggle Logic
+local isOpen = false
+OpenBtn.MouseButton1Click:Connect(function()
+    isOpen = not isOpen
+    Main.Visible = isOpen
+end)
+
+-- [3] SHARED STATS (With Waiter)
+local MoneyVal = 0
+local success = false
+for i=1, 20 do
+    if LP.Data and LP.Data:FindFirstChild("Beli") then MoneyVal = LP.Data.Beli.Value; success=true; break end
+    task.wait(0.5)
+end
+
+getgenv().Stats = { Chests = 0, StartMoney = MoneyVal, StartTime = os.time() }
+print("[Chunk 1] Ready. Run Chunk 2.")
+
+
+
+
+
+
+
+
+
+
+
+-- // NAHSOR CHESTHUB V15.5 - CHUNK 2 [ENGINE FIXED] //
+-- [Status: Fixed Hopping | Fixed Webhook | Fixed UI Visibility]
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local task_wait, task_spawn = task.wait, task.spawn
+local math_floor = math.floor
+local os_time = os.time
+
+-- ==================================================================
+-- [1] ROBUST WEBHOOK (Verified Logic)
+-- ==================================================================
+local function SendWebhook(msg)
+    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then return end
+    
+    task_spawn(function()
+        local request = http_request or request or HttpPost or syn.request
+        if not request then return end
+        
+        -- Safe Data Fetch
+        local currentBeli = 0
+        local startBeli = 0
+        pcall(function() 
+            currentBeli = LP.Data.Beli.Value 
+            startBeli = getgenv().Stats.StartMoney or currentBeli
+        end)
+        
+        local stats = getgenv().Stats or {StartTime = os_time(), Chests = 0}
+        local duration = os_time() - (stats.StartTime or os_time())
+        local timeString = string.format("%02d:%02d:%02d", math_floor(duration/3600), math_floor((duration%3600)/60), duration%60)
+        
+        local isStart = (msg == "Start")
+        local isAlert = (msg and msg ~= "" and not isStart)
+        
+        local Title = "💰 SERVER REPORT"
+        local Color = 65280 -- Green
+        
+        if isAlert then Title = "🚨 RARE ITEM FOUND!"; Color = 16711680
+        elseif isStart then Title = "🟢 SCRIPT STARTED"; Color = 65535 end
+
+        local Embed = {
+            ["title"] = Title,
+            ["description"] = "**Player:** " .. LP.Name .. 
+                              "\n**Time:** " .. timeString .. 
+                              "\n**Chests:** " .. tostring(stats.Chests or 0) .. 
+                              "\n**Profit:** $" .. tostring(currentBeli - startBeli) .. 
+                              "\n**Status:** " .. (isStart and "Running" or (msg or "Farming")),
+            ["color"] = Color,
+            ["footer"] = { ["text"] = "Nahsor ChestHub V15.5" }
+        }
+        
+        pcall(function() 
+            request({
+                Url = getgenv().Config.WebhookURL, 
+                Body = HttpService:JSONEncode({["embeds"] = {Embed}}), 
+                Method = "POST", 
+                Headers = {["Content-Type"] = "application/json"}
+            }) 
+        end)
+    end)
+end
+getgenv().SendWebhook = SendWebhook
+
+-- ==================================================================
+-- [2] STATUS UI (Visible over 3D Render)
+-- ==================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ChestHub_Core"
+ScreenGui.IgnoreGuiInset = true -- [FIX] Ensures UI stays visible
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+pcall(function() if LP.PlayerGui:FindFirstChild("ChestHub_Core") then LP.PlayerGui.ChestHub_Core:Destroy() end ScreenGui.Parent = LP.PlayerGui end)
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Position = UDim2.new(0.02, 0, 0.45, 0) -- Moved slightly down so it doesn't block settings
+MainFrame.Size = UDim2.new(0, 180, 0, 0)
+MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+MainFrame.ZIndex = 100 -- [FIX] High ZIndex ensures it sits on top
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(40, 225, 80)
+local UIList = Instance.new("UIListLayout", MainFrame); UIList.SortOrder = Enum.SortOrder.LayoutOrder; UIList.Padding = UDim.new(0, 4)
+local Padding = Instance.new("UIPadding", MainFrame); Padding.PaddingTop = UDim.new(0, 10); Padding.PaddingLeft = UDim.new(0, 10); Padding.PaddingRight = UDim.new(0, 10); Padding.PaddingBottom = UDim.new(0, 10)
+
+local function Label(text, color, order)
+    local l = Instance.new("TextLabel", MainFrame)
+    l.Text, l.TextColor3, l.LayoutOrder = text, color or Color3.fromRGB(220, 220, 220), order
+    l.BackgroundTransparency, l.Size, l.Font, l.TextSize = 1, UDim2.new(1,0,0,16), Enum.Font.GothamBold, 12
+    l.TextXAlignment, l.ZIndex = Enum.TextXAlignment.Left, 101
+    return l
+end
+
+TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
+ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
+EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 2)
+StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 3)
+
+-- Control Buttons
+local BtnRow = Instance.new("Frame", MainFrame); BtnRow.BackgroundTransparency = 1; BtnRow.Size = UDim2.new(1, 0, 0, 24); BtnRow.LayoutOrder = 7; BtnRow.ZIndex=102
+local ToggleBtn = Instance.new("TextButton", BtnRow); ToggleBtn.Text = "ON"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40); ToggleBtn.Size = UDim2.new(0.48, 0, 1, 0); ToggleBtn.ZIndex=103
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
+local HopBtn = Instance.new("TextButton", BtnRow); HopBtn.Text = "HOP"; HopBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 220); HopBtn.Size = UDim2.new(0.48, 0, 1, 0); HopBtn.Position = UDim2.new(0.52, 0, 0, 0); HopBtn.ZIndex=103
+Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 6)
+
+local ExtraRow = Instance.new("Frame", MainFrame); ExtraRow.BackgroundTransparency = 1; ExtraRow.Size = UDim2.new(1, 0, 0, 24); ExtraRow.LayoutOrder = 8; ExtraRow.ZIndex=102
+local RenderBtn = Instance.new("TextButton", ExtraRow); RenderBtn.Text = "3D: OFF"; RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40); RenderBtn.Size = UDim2.new(1, 0, 1, 0); RenderBtn.ZIndex=103
+Instance.new("UICorner", RenderBtn).CornerRadius = UDim.new(0, 6)
+
+-- ==================================================================
+-- [3] LOGIC & HOPPING
+-- ==================================================================
+local ChestCache, VisitedChests = {}, {}
+local Farming, Hopping = true, false
+
+local function ServerHop(Reason)
+    if Hopping then return end
+    SendWebhook(nil)
+    StatusLbl.Text = "Hopping Server..."
+    Hopping = true
+    task_wait(3)
+    
+    -- Safe Hop Logic
+    local PlaceID = game.PlaceId
+    local AllIDs = {}
+    pcall(function() AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json")) end)
+    if not AllIDs or type(AllIDs) ~= "table" then AllIDs = {} end
+    table.insert(AllIDs, game.JobId)
+    pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+
+    local function Scan()
+        local cursor = ""
+        while true do
+            local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. cursor
+            local s, r = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+            if s and r and r.data then
+                for _, v in pairs(r.data) do
+                    local ID = tostring(v.id)
+                    if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
+                        local New = true
+                        for _, old in pairs(AllIDs) do if tostring(old) == ID then New = false end end
+                        if New then
+                            TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
+                            task_wait(15)
+                        end
+                    end
+                end
+                cursor = r.nextPageCursor or ""
+                if cursor == "" then break end
+            end
+            task_wait(1)
+        end
+    end
+    task_spawn(Scan)
+end
+
+-- [FIX] BROADER CHEST FINDER
+-- Uses string.find instead of exact names to capture "Chest1", "Chest2", "Treasure", etc.
 local function GetChests()
     local Ret = {}
     for _, v in pairs(Workspace:GetChildren()) do
-        if v.Name == "Chest1" or v.Name == "Chest2" or v.Name == "Chest3" then table.insert(Ret, v) end
+        if v.Name:find("Chest") or v.Name:find("Treasure") then 
+            if v:FindFirstChild("TouchInterest") or v:IsA("Part") then
+                table.insert(Ret, v) 
+            end
+        end
     end
     return Ret
 end
@@ -211,15 +470,24 @@ local function TP(Pos)
     until Distance < 10 or Stuck > 20 or Tween.PlaybackState ~= Enum.PlaybackState.Playing
 end
 
--- Main Loop
+-- MAIN FARM LOOP
 task_spawn(function()
+    StatusLbl.Text = "Warming Up (5s)..."
+    task_wait(5) -- [FIX] Prevents instant hopping on join
+    
     while true do
         task_wait()
-        if not getgenv().Config.FarmChests then StatusLbl.Text = "Farming Disabled" task_wait(1) continue end
-        local Chests = GetChests()
-        if #Chests == 0 then StatusLbl.Text = "No Chests! Hopping..." ServerHop("No Chests") task_wait(5) continue end
+        if not getgenv().Config.FarmChests or not Farming then StatusLbl.Text = "Paused"; task_wait(1); continue end
         
-        StatusLbl.Text = "Farming (" .. #Chests .. " Left)..."
+        local Chests = GetChests()
+        if #Chests == 0 then 
+            StatusLbl.Text = "No Chests! Hopping..."
+            ServerHop("No Chests")
+            task_wait(10)
+            continue 
+        end
+        
+        StatusLbl.Text = "Farming ("..#Chests.." Left)..."
         for _, Chest in pairs(Chests) do
             if not Chest or not Chest.Parent then continue end
             if ChestCache[Chest] then continue end
@@ -227,14 +495,15 @@ task_spawn(function()
             if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
                 TP(Chest.CFrame + Vector3.new(0, 5, 0))
                 task_wait(getgenv().Config.CollectionWait or 0.1)
+                
                 if not Chest.Parent then
-                    -- UPDATE STATS & MONEY UI
+                    -- Stats Update
                     getgenv().Stats.Chests = (getgenv().Stats.Chests or 0) + 1
                     ChestsLbl.Text = "Chests: " .. getgenv().Stats.Chests
                     
                     local cur = LP.Data.Beli.Value
                     local start = getgenv().Stats.StartMoney or cur
-                    EarnedLbl.Text = "Money: $" .. (cur - start)
+                    EarnedLbl.Text = "Profit: $" .. (cur - start)
                     
                     ChestCache[Chest] = true
                 end
@@ -246,26 +515,14 @@ end)
 -- Button Logic
 ToggleBtn.MouseButton1Click:Connect(function() Farming = not Farming; ToggleBtn.Text = Farming and "ON" or "OFF"; ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
 HopBtn.MouseButton1Click:Connect(function() Hopping = false; ServerHop("Manual") end)
-AFKBtn.MouseButton1Click:Connect(function() BlurFrame.Visible = not BlurFrame.Visible; AFKBtn.BackgroundColor3 = BlurFrame.Visible and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
-
--- Render Logic
-if Config.Disable3DRender then
-    RenderBtn.Text = "3d Rend: ON"
-    RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
-    pcall(function() RunService:Set3dRenderingEnabled(false) end)
-else
-    RenderBtn.Text = "3d Rend: OFF"
-    RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-    pcall(function() RunService:Set3dRenderingEnabled(true) end)
-end
 
 RenderBtn.MouseButton1Click:Connect(function() 
     Config.Disable3DRender = not Config.Disable3DRender
     local State = Config.Disable3DRender
-    RenderBtn.Text = State and "3d Rend: ON" or "3d Rend: OFF"
+    RenderBtn.Text = State and "3D: ON" or "3D: OFF" -- If ON, button is Green (Means Saver is Active)
     RenderBtn.BackgroundColor3 = State and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
     pcall(function() RunService:Set3dRenderingEnabled(not State) end) 
 end)
 
--- Start
-task_spawn(function() task_wait(2); SendWebhook("Start") end)
+-- Init
+task_spawn(function() task_wait(3); SendWebhook("Start") end)
