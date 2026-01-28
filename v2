@@ -393,8 +393,6 @@ local GuiService = game:GetService("GuiService")
 -- ==================================================================
 -- [FIXED WEBHOOK SYSTEM FOR V2]
 
-local chests = (getgenv().Stats and getgenv().Stats.Chests) or 0
-
 getgenv().SendWebhook = function(msg)
     local Config = getgenv().Config
     -- Fix 1: No "discord" name check to allow proxies
