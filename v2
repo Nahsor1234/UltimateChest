@@ -369,7 +369,11 @@ task_spawn(function()
 end)   
 
 
-
+-- Replace the broken lines at the bottom of Chunk 1 with this:
+        for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
+        workspace.DescendantAdded:Connect(Clear)
+    end)
+end
 
 
 
