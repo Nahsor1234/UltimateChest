@@ -188,35 +188,40 @@ end)
 
 
 
-
-
--- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL CONFIG LOADER] //
--- [Role: Stores URL & Stats for Chunk 2]
+-- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
+-- [Fixes: Global Config, Shared Stats, Drag Function, Webhook Order]
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait() until game.Players.LocalPlayer
 repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
 
 local game = game
+local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 local VirtualUser = game:GetService("VirtualUser")
 local UserInputService = game:GetService("UserInputService")
-local LP = Players.LocalPlayer
+local GuiService = game:GetService("GuiService")
 
 local task_wait, task_spawn = task.wait, task.spawn
 local math_floor, math_huge = math.floor, math.huge
 local os_time, os_date = os.time, os.date
 
+local LP = Players.LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
+
 -- ==================================================================
--- [1] CONFIGURATION (WEBHOOK URL IS HERE 👇)
+-- [1] CONFIGURATION (MUST BE TOP)
 -- ==================================================================
+
+-- 1. Defaults
 local Config = {
-    -- This is the "Fuel" for the Webhook Engine in Chunk 2
     WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
-    
     TweenSpeed = 350,       
     CollectionWait = 0.05, 
     MaxTime = 120,
@@ -232,7 +237,7 @@ local Config = {
     MaxFarmDistance = 4000
 }
 
--- File Overwrite Logic
+-- 2. File Overwrite
 local FileName = "NahsorConfig.json"
 if isfile(FileName) then
     pcall(function()
@@ -245,23 +250,61 @@ if isfile(FileName) then
     end)
 end
 
--- Legacy Support
+-- 3. Legacy Support
 pcall(function()
     if getgenv and getgenv().UserConfig then
         for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
     end
 end)
 
--- [CRITICAL] Share Config Globally (So Chunk 2 can see the URL)
+-- 4. MAKE GLOBAL (CRITICAL FOR CHUNK 2)
 getgenv().Config = Config 
 
 -- ==================================================================
--- [2] SHARED STATS & TOOLS
+-- [2] WEBHOOK SYSTEM
 -- ==================================================================
+
+
+
+-- ==================================================================
+-- [3] VARIABLES & SHARED STATS
+-- ==================================================================
+
+-- [CRITICAL FIX] Stats must be Global so Chunk 2 (UI) can read them
 getgenv().Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
 pcall(function() getgenv().Stats.StartMoney = LP.Data.Beli.Value end)
 
--- Global UI Dragger
+local ChestCache = {}
+local VisitedChests = {} 
+local CollectedPositions = {}
+local CollectedFruits = {} 
+local Farming, IsMoving, Hopping = true, false, false
+local LastMoveTime = os_time()
+local LastPos = Vector3.new(0,0,0)
+local RareItems = {"God's Chalice", "Fist of Darkness"}
+local LastCacheRefresh = 0
+
+-- [4] AUTO TEAM SELECT
+task_spawn(function()
+    repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+    local attempts = 0
+    while attempts < 60 do 
+        if LP.Team and LP.Team.Name == "Pirates" then break end
+        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
+        attempts = attempts + 1
+        task_wait(1)
+    end
+end)
+
+-- [5] ANTI-AFK
+LP.Idled:Connect(function()
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0,0))
+    end)
+end)
+
+-- [CRITICAL FIX] MakeDraggable must be Global for Chunk 2
 getgenv().MakeDraggable = function(gui)
     local dragging, dragInput, dragStart, startPos
     local function update(input)
@@ -280,31 +323,7 @@ getgenv().MakeDraggable = function(gui)
     UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 end
 
--- ==================================================================
--- [3] SETUP HELPERS
--- ==================================================================
-
--- Anti-AFK
-LP.Idled:Connect(function()
-    pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new(0,0))
-    end)
-end)
-
--- Auto Team
-task_spawn(function()
-    repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
-    local attempts = 0
-    while attempts < 60 do 
-        if LP.Team and LP.Team.Name == "Pirates" then break end
-        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
-        attempts = attempts + 1
-        task_wait(1)
-    end
-end)
-
--- Fast Mode
+-- [6] FAST MODE
 local function ApplyFastMode()
     if Config.UltraFastMode then return end
     if not Config.FastMode then return end
@@ -319,7 +338,7 @@ local function ApplyFastMode()
     workspace.DescendantAdded:Connect(Fastify)
 end
 
--- Ultra Fast Mode
+-- [7] ULTRA FAST MODE
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     pcall(function()
@@ -338,7 +357,8 @@ local function ApplyUltraFastMode()
             elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then v:Destroy() end
         end
         for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
-        workspace.DescendantAdded:Connect(Clear)
+        workspace.DescendantAdded:Connect(C
+lear)
     end)
 end
 
@@ -347,6 +367,8 @@ task_spawn(function()
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
 end)
+
+
 
 
 
@@ -620,106 +642,7 @@ task.spawn(function()
     SendWebhook("Start")
 end)
 
--- // PASTING THIS AT THE BOTTOM OF CHUNK 2 ADDS THE MOVEMENT LOGIC //
 
--- [A] MOVEMENT FUNCTIONS
-local function GetChests()
-    local Ret = {}
-    for _, v in pairs(workspace:GetChildren()) do
-        if v.Name == "Chest1" or v.Name == "Chest2" or v.Name == "Chest3" then
-            table.insert(Ret, v)
-        end
-    end
-    return Ret
-end
-
-local function TP(Pos)
-    -- Calculate Distance
-    local Distance = (Pos.Position - LP.Character.HumanoidRootPart.Position).Magnitude
-    local Speed = getgenv().Config.TweenSpeed or 350
-    
-    -- Create Tween
-    local Tween = game:GetService("TweenService"):Create(
-        LP.Character.HumanoidRootPart,
-        TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear),
-        {CFrame = Pos}
-    )
-    Tween:Play()
-    
-    -- Safety: If stuck, cancel
-    local StuckCheck = 0
-    repeat
-        task.wait(0.1)
-        StuckCheck = StuckCheck + 0.1
-        if LP.Character.Humanoid.Health <= 0 then Tween:Cancel() break end
-        -- Webhook: If you find a fruit, it will auto-send here if configured
-    until Distance < 10 or StuckCheck > 20 or not Tween.PlaybackState == Enum.PlaybackState.Playing
-end
-
--- [B] MAIN FARMING LOOP
-task.spawn(function()
-    while true do
-        task.wait()
-        
-        -- 1. Check if we should be farming
-        if not getgenv().Config.FarmChests then 
-            StatusLbl.Text = "Farming Disabled"
-            task.wait(1)
-            continue 
-        end
-        
-        -- 2. Find Valid Chests
-        local Chests = GetChests()
-        if #Chests == 0 then
-            -- NO CHESTS LEFT -> HOP SERVER
-            StatusLbl.Text = "Server Empty! Hopping..."
-            ServerHop("No Chests")
-            task.wait(5) -- Wait for hop
-            continue
-        end
-        
-        -- 3. Farm the Chests
-        StatusLbl.Text = "Farming (" .. #Chests .. " Left)..."
-        
-        for _, Chest in pairs(Chests) do
-            if not Chest or not Chest.Parent then continue end
-            if ChestCache[Chest] then continue end -- Skip if we already took it
-            
-            -- Go to Chest
-            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-                TP(Chest.CFrame + Vector3.new(0, 5, 0)) -- Teleport slightly above
-                
-                -- Wait for Collection
-                task.wait(getgenv().Config.CollectionWait or 0.1)
-                
-                -- Update Stats
-                if not Chest.Parent then -- It disappeared (We got it!)
-                    getgenv().Stats.Chests = (getgenv().Stats.Chests or 0) + 1
-                    ChestsLbl.Text = "Chests: " .. getgenv().Stats.Chests
-                    
-                    -- Calculate Money Earned
-                    local current = LP.Data.Beli.Value
-                    local start = getgenv().Stats.StartMoney or current
-                    EarnedLbl.Text = "Money: $" .. (current - start)
-                    
-                    ChestCache[Chest] = true
-                end
-            end
-        end
-    end
-end)
-
--- [C] TIMER LOOP (Updates the Time Label)
-task.spawn(function()
-    while true do
-        task.wait(1)
-        local duration = os.time() - (getgenv().Stats.StartTime or os.time())
-        local h = math.floor(duration / 3600)
-        local m = math.floor((duration % 3600) / 60)
-        local s = duration % 60
-        TimerLbl.Text = string.format("Time: %02d:%02d:%02d", h, m, s)
-    end
-end)
 
                             
         
@@ -740,7 +663,7 @@ end)
 local Divider = Instance.new("Frame", MainFrame)
 Divider.BackgroundColor3, Divider.BorderSizePixel, Divider.Size, Divider.LayoutOrder, Divider.ZIndex = Color3.fromRGB(60, 60, 60), 0, UDim2.new(1, 0, 0, 1), 6, 11
 local BtnRow = Instance.new("Frame", MainFrame)
-BtnRow.BackgroundTransparency, BtnRow.Size, BtnRow.LayoutOrder, BtnRow.ZIndex = 1, UDim2.new(1, 0, 0, 24), 7, 11
+BtnRow.BackgroundTransparency, BtnRow.Size, BtnRow.LayoutOrder, BtnRow.ZIndex = 1, UDim2.new(, 0, 0, 24), 7, 11
 local ToggleBtn = Instance.new("TextButton", BtnRow)
 ToggleBtn.Text, ToggleBtn.BackgroundColor3, ToggleBtn.Size, ToggleBtn.ZIndex = "ON", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), 12
 Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
