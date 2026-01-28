@@ -376,6 +376,40 @@ end)
 
 -- // NAHSOR CHESTHUB V14.6 - CHUNK 2 [ORIGINAL UI & WORKING WEBHOOK] //
 
+
+-- // GLOBAL WEBHOOK SENDER //
+getgenv().SendWebhook = function(item)
+    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" or not getgenv().Config.WebhookURL:find("discord") then return end
+    
+    task.spawn(function()
+        local request = http_request or request or HttpPost or syn.request
+        if not request then return end
+        
+        local currentBeli = 0
+        pcall(function() currentBeli = LP.Data.Beli.Value end)
+        
+        local duration = os.time() - getgenv().Stats.StartTime
+        local timeString = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
+        
+        local isAlert = (item and item ~= "")
+        local data = {["embeds"] = {{
+            ["title"] = isAlert and "🚨 RARE ITEM FOUND!" or "💰 SERVER REPORT",
+            ["description"] = "**Player:** " .. LP.Name .. "\n**Time:** " .. timeString .. "\n**Chests:** " .. tostring(getgenv().Stats.Chests) .. "\n**Money:** $" .. tostring(currentBeli - getgenv().Stats.StartMoney) .. "\n**Fruit:** " .. (item or "None"),
+            ["color"] = isAlert and 16711680 or 65280,
+            ["footer"] = { ["text"] = "Nahsor ChestHub V14.6" }
+        }}}
+        
+        pcall(function() 
+            request({
+                Url = getgenv().Config.WebhookURL, 
+                Body = HttpService:JSONEncode(data), 
+                Method = "POST", 
+                Headers = {["Content-Type"] = "application/json"}
+            }) 
+        end)
+    end)
+end
+
 -- [1] WEBHOOK FUNCTION (Restored to "Working" Version)
 local function SendWebhook(item)
     if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" or getgenv().Config.WebhookURL:find("discord") == nil then return end
