@@ -198,5 +198,184 @@ end)
 
 
 
+ -- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
+-- [Fixes: Global Config, Shared Stats, Drag Function, Webhook Order]
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+repeat task.wait() until game.Players.LocalPlayer
+repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+
+local game = game
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
+
+local task_wait, task_spawn = task.wait, task.spawn
+local math_floor, math_huge = math.floor, math.huge
+local os_time, os_date = os.time, os.date
+
+local LP = Players.LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
+
+-- ==================================================================
+-- [1] CONFIGURATION (MUST BE TOP)
+-- ==================================================================
+
+-- 1. Defaults
+local Config = {
+    WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
+    TweenSpeed = 350,       
+    CollectionWait = 0.05, 
+    MaxTime = 120,
+    Disable3DRender = true, 
+    AFKMode = true,
+    FastMode = true,        
+    UltraFastMode = false,
+    StopOnRareItem = true,
+    AdminHop = true, 
+    FarmChests = true,
+    FarmFruit = true,
+    HopDelay = 8,
+    MaxFarmDistance = 4000
+}
+
+-- 2. File Overwrite
+local FileName = "NahsorConfig.json"
+if isfile(FileName) then
+    pcall(function()
+        local FileData = readfile(FileName)
+        local UserSettings = HttpService:JSONDecode(FileData)
+        for Key, Value in pairs(UserSettings) do
+            if Config[Key] ~= nil then Config[Key] = Value end
+        end
+        print("[NahsorConfig] Settings Loaded!")
+    end)
+end
+
+-- 3. Legacy Support
+pcall(function()
+    if getgenv and getgenv().UserConfig then
+        for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
+    end
+end)
+
+-- 4. MAKE GLOBAL (CRITICAL FOR CHUNK 2)
+getgenv().Config = Config 
+
+-- ==================================================================
+-- [2] WEBHOOK SYSTEM
+-- ==================================================================
+
+
+
+-- ==================================================================
+-- [3] VARIABLES & SHARED STATS
+-- ==================================================================
+
+-- [CRITICAL FIX] Stats must be Global so Chunk 2 (UI) can read them
+getgenv().Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
+pcall(function() getgenv().Stats.StartMoney = LP.Data.Beli.Value end)
+
+local ChestCache = {}
+local VisitedChests = {} 
+local CollectedPositions = {}
+local CollectedFruits = {} 
+local Farming, IsMoving, Hopping = true, false, false
+local LastMoveTime = os_time()
+local LastPos = Vector3.new(0,0,0)
+local RareItems = {"God's Chalice", "Fist of Darkness"}
+local LastCacheRefresh = 0
+
+-- [4] AUTO TEAM SELECT
+task_spawn(function()
+    repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+    local attempts = 0
+    while attempts < 60 do 
+        if LP.Team and LP.Team.Name == "Pirates" then break end
+        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
+        attempts = attempts + 1
+        task_wait(1)
+    end
+end)
+
+-- [5] ANTI-AFK
+LP.Idled:Connect(function()
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0,0))
+    end)
+end)
+
+-- [CRITICAL FIX] MakeDraggable must be Global for Chunk 2
+getgenv().MakeDraggable = function(gui)
+    local dragging, dragInput, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = gui.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    gui.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end end)
+    UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
+end
+
+-- [6] FAST MODE
+local function ApplyFastMode()
+    if Config.UltraFastMode then return end
+    if not Config.FastMode then return end
+    local L = game:GetService("Lighting")
+    L.GlobalShadows, L.FogEnd = false, 9e9
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    local function Fastify(v)
+        if v:IsA("BasePart") then pcall(function() v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false end) end
+        if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 end
+    end
+    for _,v in pairs(workspace:GetDescendants()) do Fastify(v) end
+    workspace.DescendantAdded:Connect(Fastify)
+end
+
+-- [7] ULTRA FAST MODE
+local function ApplyUltraFastMode()
+    if not Config.UltraFastMode then return end
+    pcall(function()
+        local L = game:GetService("Lighting")
+        L.GlobalShadows = false
+        L.FogEnd = 9e9
+        L.Brightness = 0.4
+        L.Ambient = Color3.new(0,0,0)
+        L.OutdoorAmbient = Color3.new(0,0,0)
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        for _,v in pairs(L:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end end
+        local function Clear(v)
+            if v:IsA("BasePart") then v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false
+            elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") then v:Destroy()
+            elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then v:Destroy() end
+        end
+        for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
+        workspace.DescendantAdded:Connect(Clear)
+    end)
+end
+
+task_spawn(function()
+    task_wait(1)
+    if Config.UltraFastMode then ApplyUltraFastMode()
+    elseif Config.FastMode then ApplyFastMode() end
+end)   
+
 
     
