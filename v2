@@ -264,7 +264,30 @@ getgenv().Config = Config
 -- ==================================================================
 -- [2] WEBHOOK SYSTEM
 -- ==================================================================
+local function SendWebhook(Title, Description, Color)
+    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then return end
+    
+    local Embed = {
+        ["title"] = Title,
+        ["description"] = Description,
+        ["color"] = Color,
+        ["footer"] = { ["text"] = "Nahsor ChestHub • " .. os.date("%H:%M:%S") }
+    }
+    
+    local Data = { ["embeds"] = {Embed} }
+    local Body = HttpService:JSONEncode(Data)
+    local Headers = { ["Content-Type"] = "application/json" }
+    
+    local req = http_request or request or HttpPost or syn.request
+    if req then
+        req({Url = getgenv().Config.WebhookURL, Method = "POST", Headers = Headers, Body = Body})
+    end
+end
 
+-- Send Start Message
+task_spawn(function()
+    SendWebhook("🟢 ChestHub Started", "Welcome back! Script is running.", 65280) 
+end)
 
 
 -- ==================================================================
@@ -369,11 +392,7 @@ task_spawn(function()
 end)   
 
 
--- Replace the broken lines at the bottom of Chunk 1 with this:
-        for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
-        workspace.DescendantAdded:Connect(Clear)
-    end)
-end
+
 
 
 
