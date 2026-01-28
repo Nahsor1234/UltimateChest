@@ -259,7 +259,7 @@ pcall(function()
 end)
 
 -- 4. MAKE GLOBAL (CRITICAL FOR CHUNK 2)
---getgenv().Config = Config 
+getgenv().Config = Config 
 
 -- ==================================================================
 -- [2] WEBHOOK SYSTEM
