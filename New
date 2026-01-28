@@ -378,4 +378,62 @@ task_spawn(function()
 end)   
 
 
-    
+
+
+
+
+
+-- // NAHSOR WEBHOOK FIXER //
+-- [Status: Overrides v2 Webhook with "Best" Logic]
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+
+-- FORCE override the sending function
+getgenv().SendWebhook = function(msg)
+    -- 1. Bypass the "Discord" Name Check
+    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then return end
+
+    task.spawn(function()
+        -- 2. Universal Executor Support
+        local request = http_request or request or HttpPost or syn.request
+        if not request then return end
+
+        -- 3. Safe Math (Prevents Crashing)
+        local currentBeli = 0
+        pcall(function() currentBeli = LP.Data.Beli.Value end)
+        
+        local stats = getgenv().Stats or {StartTime = os.time(), StartMoney = currentBeli, Chests = 0}
+        local duration = os.time() - (stats.StartTime or os.time())
+        local profit = currentBeli - (stats.StartMoney or 0)
+        
+        -- Time Formatter
+        local function fmt(s) 
+            return string.format("%02d:%02d:%02d", math.floor(s/3600), math.floor((s%3600)/60), s%60) 
+        end
+
+        local Embed = {
+            ["title"] = (msg == "Start" and "🟢 SCRIPT STARTED") or "💰 SERVER REPORT",
+            ["color"] = (msg == "Start" and 65535) or 65280,
+            ["fields"] = {
+                {["name"] = "Time", ["value"] = fmt(duration), ["inline"] = true},
+                {["name"] = "Chests", ["value"] = tostring(stats.Chests or 0), ["inline"] = true},
+                {["name"] = "Profit", ["value"] = "$" .. tostring(profit), ["inline"] = true}
+            },
+            ["footer"] = { ["text"] = "Nahsor ChestHub (Fixed)" }
+        }
+
+        -- 4. Send without Filters
+        pcall(function() 
+            request({
+                Url = getgenv().Config.WebhookURL, 
+                Body = HttpService:JSONEncode({["embeds"] = {Embed}}), 
+                Method = "POST", 
+                Headers = {["Content-Type"] = "application/json"}
+            }) 
+        end)
+    end)
+end
+
+print("✅ Webhook System Fixed! (Using 'Best' Logic)")
