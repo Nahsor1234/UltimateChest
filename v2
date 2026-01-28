@@ -188,8 +188,6 @@ end)
 
 
 
-
-
 -- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
 -- [Fixes: Global Config, Shared Stats, Drag Function, Webhook Order]
 
@@ -259,6 +257,9 @@ pcall(function()
     end
 end)
 
+-- 4. MAKE GLOBAL (CRITICAL FOR CHUNK 2)
+getgenv().Config = Config 
+
 -- ==================================================================
 -- [2] WEBHOOK SYSTEM
 -- ==================================================================
@@ -294,6 +295,7 @@ task_spawn(function()
         task_wait(1)
     end
 end)
+
 -- [5] ANTI-AFK
 LP.Idled:Connect(function()
     pcall(function()
