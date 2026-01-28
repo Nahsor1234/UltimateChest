@@ -391,70 +391,47 @@ local GuiService = game:GetService("GuiService")
 -- ==================================================================
 -- [1] ROBUST WEBHOOK SYSTEM (MATCHING THE WORKING TEST SCRIPT)
 -- ==================================================================
-local function SendWebhook(msg)
-    -- 1. Validation (Matches Test Script)
-    if not getgenv().Config.WebhookURL or getgenv().Config.WebhookURL == "" then 
-        return 
-    end
-    
+-- [FIXED WEBHOOK SYSTEM FOR V2]
+getgenv().SendWebhook = function(msg)
+    local Config = getgenv().Config
+    -- Fix 1: No "discord" name check to allow proxies
+    if not Config or not Config.WebhookURL or Config.WebhookURL == "" then return end
+
     task.spawn(function()
-        -- 2. Tool Detection (Matches Test Script)
+        -- Fix 2: Support for all executors
         local request = http_request or request or HttpPost or syn.request
         if not request then return end
-        
-        -- 3. Data Gathering (Safe Mode)
-        local currentBeli = 0
-        pcall(function() currentBeli = LP.Data.Beli.Value end)
-        
-        local stats = getgenv().Stats or {StartTime = os.time(), StartMoney = currentBeli, Chests = 0}
-        local duration = os.time() - (stats.StartTime or os.time())
-        local timeString = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
-        local earned = currentBeli - (stats.StartMoney or 0)
-        
-        -- 4. Message Formatting
-        local isAlert = (msg and msg ~= "" and msg ~= "Start")
-        local isStart = (msg == "Start")
-        
-        local Title = "💰 SERVER REPORT"
-        local Color = 65280 -- Green (Success)
-        
-        if isAlert then
-            Title = "🚨 RARE ITEM FOUND!"
-            Color = 16711680 -- Red
-        elseif isStart then
-            Title = "🟢 SCRIPT STARTED"
-            Color = 65535 -- Cyan
-        end
 
-        local Embed = {
-            ["title"] = Title,
-            ["description"] = "**Player:** " .. LP.Name .. 
-                              "\n**Time:** " .. timeString .. 
-                              "\n**Chests:** " .. tostring(stats.Chests or 0) .. 
-                              "\n**Money:** $" .. tostring(earned) .. 
-                              "\n**Status:** " .. (isStart and "Running" or (msg or "Farming")),
-            ["color"] = Color,
-            ["footer"] = { ["text"] = "Nahsor ChestHub V14.6" }
-        }
+        -- Fix 3: Safe data gathering with pcall to stop "nil" crashes
+        local currentBeli = 0
+        pcall(function() 
+            currentBeli = LP.Data.Beli.Value 
+        end)
         
+        local stats = getgenv().Stats or {Chests = 0, StartMoney = currentBeli, StartTime = os.time()}
+        local duration = os.time() - stats.StartTime
+        local profit = currentBeli - stats.StartMoney
+
         local Data = {
-            ["content"] = "", 
-            ["embeds"] = {Embed}
+            ["embeds"] = {{
+                ["title"] = (msg == "Start" and "🟢 SCRIPT STARTED") or "💰 SERVER REPORT",
+                ["description"] = "**Profit:** $" .. tostring(profit) .. "\n**Chests Collected:** " .. tostring(stats.Chests),
+                ["color"] = (msg == "Start" and 65535) or 65280,
+                ["footer"] = { ["text"] = "Nahsor ChestHub - Fixed Logic" }
+            }}
         }
-        
-        -- 5. Sending (Exact Logic from Test Script)
+
+        -- Send the data without filters
         pcall(function() 
             request({
-                Url = getgenv().Config.WebhookURL, 
-                Body = HttpService:JSONEncode(Data), 
+                Url = Config.WebhookURL, 
+                Body = game:GetService("HttpService"):JSONEncode(Data), 
                 Method = "POST", 
                 Headers = {["Content-Type"] = "application/json"}
             }) 
         end)
     end)
 end
-getgenv().SendWebhook = SendWebhook
-
 -- ==================================================================
 -- [2] UI CONSTRUCTION (CRASH PROOF)
 -- ==================================================================
