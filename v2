@@ -1,5 +1,5 @@
--- // NAHSOR CONFIG MANAGER V9 [PERFECTED LAYOUT] //
--- [Features: Right-Side Inputs | Grouped Order | Sleek UI]
+-- // NAHSOR CONFIG MANAGER V10 [TEAM SELECTOR ADDED] //
+-- [Features: Team Switcher | Right-Side Inputs | Sleek UI]
 
 local Players = game:GetService("Players")
 local Http = game:GetService("HttpService")
@@ -8,8 +8,9 @@ local TweenService = game:GetService("TweenService")
 local LP = Players.LocalPlayer
 local FileName = "NahsorConfig.json"
 
--- [1] DEFAULT CONFIG
+-- [1] DEFAULT CONFIG (Added 'Team')
 local Config = {
+    Team = "Pirates", -- Default Team
     Disable3DRender = true, AFKMode = true, FastMode = true, UltraFastMode = false,
     FarmChests = true, StopOnRareItem = true,
     MaxTime = 120, TweenSpeed = 350, MaxFarmDistance = 4000, HopDelay = 8,
@@ -21,7 +22,7 @@ local function Save() pcall(function() writefile(FileName, Http:JSONEncode(Confi
 if isfile(FileName) then pcall(function() local d = Http:JSONDecode(readfile(FileName)) for k,v in pairs(d) do Config[k]=v end end) end
 
 -- [3] UI SETUP
-local GuiName = "NahsorConfig_V9"
+local GuiName = "NahsorConfig_V10"
 pcall(function() if LP.PlayerGui:FindFirstChild(GuiName) then LP.PlayerGui[GuiName]:Destroy() end end)
 local Gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui")); Gui.Name = GuiName
 
@@ -104,7 +105,7 @@ local function AddOption(name, key, type, info)
         Text=name, TextColor3=Color3.fromRGB(200,200,200), TextSize=12, Font=Enum.Font.GothamMedium, TextXAlignment=Enum.TextXAlignment.Left
     })
     
-    -- [?] Info Button (Positioned exactly right of the Text)
+    -- [?] Info Button
     local InfoBtn = Create("TextButton", {
         Parent=Row, Size=UDim2.new(0,20,0,20), Position=UDim2.new(0,140,0.5,-10),
         BackgroundTransparency=1, Text="?", TextColor3=Color3.fromRGB(80,80,80), TextSize=12, Font=Enum.Font.GothamBold
@@ -135,8 +136,29 @@ local function AddOption(name, key, type, info)
         end
         ToggleBg.MouseButton1Click:Connect(function() Config[key] = not Config[key]; Update(); Save() end); Update()
         
+    elseif type == "Team" then
+        -- [TEAM SWITCHER BUTTON] (Modified to fit style)
+        local TeamBtn = Create("TextButton", {
+            Parent=Row, Size=UDim2.new(0,70,0,24), Position=UDim2.new(1,-85,0.5,-12),
+            BackgroundColor3=Color3.fromRGB(20,20,20), TextColor3=Color3.fromRGB(0,255,200),
+            Text=Config[key], Font=Enum.Font.GothamBold, TextSize=11, AutoButtonColor=false
+        })
+        Create("UICorner", {Parent=TeamBtn, CornerRadius=UDim.new(0,4)})
+        Create("UIStroke", {Parent=TeamBtn, Color=Color3.fromRGB(50,50,50), Thickness=1})
+        
+        TeamBtn.MouseButton1Click:Connect(function()
+            -- Toggle Logic
+            if Config[key] == "Pirates" then Config[key] = "Marines" else Config[key] = "Pirates" end
+            TeamBtn.Text = Config[key]
+            -- Visual click effect
+            Tween(TeamBtn, {BackgroundColor3=Color3.fromRGB(35,35,35)}, 0.1)
+            task.wait(0.1)
+            Tween(TeamBtn, {BackgroundColor3=Color3.fromRGB(20,20,20)}, 0.1)
+            Save()
+        end)
+
     else
-        -- [RIGHT SIDE INPUT] (Restored V6 Layout)
+        -- [NUMERIC INPUT]
         local Box = Create("TextBox", {
             Parent=Row, Size=UDim2.new(0,50,0,24), Position=UDim2.new(1,-65,0.5,-12),
             BackgroundColor3=Color3.fromRGB(20,20,20), TextColor3=Color3.fromRGB(0,255,200),
@@ -152,7 +174,8 @@ local function AddOption(name, key, type, info)
     end
 end
 
--- [7] MENU ITEMS (Grouped: Toggles Top, Numbers Bottom)
+-- [7] MENU ITEMS (Grouped: Team -> Toggles -> Numbers)
+AddOption("Select Team", "Team", "Team", "Click to switch (Pirates/Marines).") -- NEW ITEM
 AddOption("Farm Chests", "FarmChests", "Bool", "Auto-collects treasure chests.")
 AddOption("3D Rendering", "Disable3DRender", "Bool", "Disable 3d Map Rendering.")
 AddOption("AFK Overlay", "AFKMode", "Bool", "Make The Screen Black.")
@@ -162,7 +185,7 @@ AddOption("Stop on Rare", "StopOnRareItem", "Bool", "Stops hopping if God's Chal
 
 -- Numbers Section (Inputs)
 AddOption("Time Limit", "MaxTime", "Num", "Force hop after X seconds.")
-AddOption("Tween Speed", "TweenSpeed", "Num", "Flight Speed.")
+AddOption("Tween Speed", "TweenSpeed", "Num", "Flight Speed (Higher = Slower).")
 AddOption("Max Dist", "MaxFarmDistance", "Num", "Scan range for chests.")
 AddOption("Hop Delay", "HopDelay", "Num", "Seconds wait before hop.")
 AddOption("FPS Limit", "FPSLimit", "Num", "Locks FPS (e.g. 15, 30, 60).")
@@ -175,14 +198,15 @@ OpenBtn.MouseButton1Click:Connect(function()
     if isOpen then
         Main.Visible = true; Main.Size = UDim2.new(0,260,0,380); Main.BackgroundTransparency = 1
         Tween(Main, {Size=UDim2.new(0,280,0,400), BackgroundTransparency=0}, 0.35, Enum.EasingStyle.Back)
-        for _,v in pairs(Main:GetDescendants()) do if v:IsA("TextLabel") or v:IsA("TextBox") then v.TextTransparency=1; Tween(v, {TextTransparency=0}, 0.2) end end
+        for _,v in pairs(Main:GetDescendants()) do if v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton") then 
+            if v.Name ~= "Close" then v.TextTransparency=1; Tween(v, {TextTransparency=0}, 0.2) end 
+        end end
     else
         Tween(Main, {Size=UDim2.new(0,260,0,380), BackgroundTransparency=1}, 0.2)
-        for _,v in pairs(Main:GetDescendants()) do if v:IsA("TextLabel") or v:IsA("TextBox") then Tween(v, {TextTransparency=1}, 0.1) end end
+        for _,v in pairs(Main:GetDescendants()) do if v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton") then Tween(v, {TextTransparency=1}, 0.1) end end
         task.wait(0.2); Main.Visible = false
     end
 end)
-
 
 
 
