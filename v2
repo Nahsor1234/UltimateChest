@@ -233,8 +233,10 @@ end)
 
 
 
--- // NAHSOR FINAL REFINED VERSION //
--- [No Location | Bounty-Focused | Dual-Send Reliability]
+
+
+-- // NAHSOR FINAL WEBHOOK SYSTEM //
+-- [Fixes: Auto Bounty/Honor Label | Only Reports on Server Hop]
 
 task.spawn(function()
     repeat task.wait(1) until getgenv().Config and getgenv().Stats
@@ -266,6 +268,12 @@ task.spawn(function()
             currentBounty = tostring(LP.leaderstats["Bounty/Honor"].Value)
         end)
 
+        -- [FIX 1: DETECT TEAM FOR LABEL]
+        local rewardLabel = "BOUNTY"
+        if LP.Team and LP.Team.Name == "Marines" then
+            rewardLabel = "HONOR " -- Added space for alignment
+        end
+
         local stats = getgenv().Stats
         local profit = currentBeli - (stats.StartMoney or currentBeli)
         local duration = os.time() - (stats.StartTime or os.time())
@@ -277,12 +285,13 @@ task.spawn(function()
             sideColor, blockTheme = 16766720, "fix"
         end
 
+        -- Updated Template with rewardLabel variable
         local textContent = string.format(
             "```%s\nNAHSOR CHESTHUB\n------------------------------\n" ..
             "👤 PLAYER  : %s\n⏱️ TIME    : %s\n📦 CHESTS  : %s\n💵 PROFIT  : $%s\n💰 TOTAL   : $%s\n" ..
             "🍎 FRUIT   : %s\n------------------------------\n" ..
-            "⚔️ BOUNTY   : %s\n```",
-            blockTheme, LP.Name, timeStr, tostring(stats.Chests or 0), tostring(profit), tostring(currentBeli), displayFruit, currentBounty
+            "⚔️ %s   : %s\n```",
+            blockTheme, LP.Name, timeStr, tostring(stats.Chests or 0), tostring(profit), tostring(currentBeli), displayFruit, rewardLabel, currentBounty
         )
 
         local embedData = {
@@ -293,33 +302,32 @@ task.spawn(function()
                 {["name"] = "⏱️ UPTIME", ["value"] = "```" .. timeStr .. "```", ["inline"] = true},
                 {["name"] = "📦 CHESTS", ["value"] = "```" .. tostring(stats.Chests or 0) .. "```", ["inline"] = true},
                 {["name"] = "💵 PROFIT", ["value"] = "```$" .. tostring(profit) .. "```", ["inline"] = true},
-                {["name"] = "⚔️ BOUNTY", ["value"] = "```" .. currentBounty .. "```", ["inline"] = true},
+                {["name"] = "⚔️ " .. rewardLabel, ["value"] = "```" .. currentBounty .. "```", ["inline"] = true},
                 {["name"] = "🍎 FRUIT FOUND", ["value"] = "```" .. displayFruit .. "```", ["inline"] = false}
             },
             ["timestamp"] = os.date("!*t")
         }
 
-        -- DUAL-SEND LOGIC (Bulletproof Reliability)
         pcall(function()
-            -- Send the Mobile-Fixed Box
             request({
-                Url = WebhookURL,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
+                Url = WebhookURL, Method = "POST", Headers = {["Content-Type"] = "application/json"},
                 Body = game:GetService("HttpService"):JSONEncode({["content"] = textContent})
             })
-            -- Send the Pro Embed
             request({
-                Url = WebhookURL,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
+                Url = WebhookURL, Method = "POST", Headers = {["Content-Type"] = "application/json"},
                 Body = game:GetService("HttpService"):JSONEncode({["embeds"] = {embedData}})
             })
         end)
     end
 
-    getgenv().SendWebhook = function(msg) if msg == "Start" then MasterReport() end end
+    -- [FIX 2: DISABLE START REPORT]
+    -- We define the function so the main script doesn't crash, 
+    -- but we make it empty so it sends nothing when the script loads.
+    getgenv().SendWebhook = function(msg) 
+        -- Do nothing. We only report on Teleport now.
+    end
 
+    -- TRIGGER: Only runs when hopping servers (After collecting chests)
     game:GetService("Players").LocalPlayer.OnTeleport:Connect(function(State)
         if State == Enum.TeleportState.InProgress then
             MasterReport()
@@ -327,7 +335,6 @@ task.spawn(function()
         end
     end)
 end)
-
 
 
 
