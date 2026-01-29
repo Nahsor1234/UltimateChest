@@ -1,5 +1,5 @@
--- // NAHSOR CONFIG MANAGER V10 [TEAM SELECTOR ADDED] //
--- [Features: Team Switcher | Right-Side Inputs | Sleek UI]
+-- // NAHSOR CONFIG MANAGER V11 [FIXED GLOBALS] //
+-- [Fix: Ensures Config is shared with Team Selector]
 
 local Players = game:GetService("Players")
 local Http = game:GetService("HttpService")
@@ -8,14 +8,37 @@ local TweenService = game:GetService("TweenService")
 local LP = Players.LocalPlayer
 local FileName = "NahsorConfig.json"
 
--- [1] DEFAULT CONFIG (Added 'Team')
-local Config = {
-    Team = "Pirates", -- Default Team
-    Disable3DRender = true, AFKMode = true, FastMode = true, UltraFastMode = false,
-    FarmChests = true, StopOnRareItem = true,
-    MaxTime = 120, TweenSpeed = 350, MaxFarmDistance = 4000, HopDelay = 8,
-    FPSLimit = 60
-}
+-- [1] GLOBAL CONFIG SETUP (CRITICAL FIX)
+-- We initialize this directly into getgenv() so other scripts can see it immediately
+if not getgenv().Config then
+    getgenv().Config = {
+        Team = "Pirates", -- Default
+        Disable3DRender = true, AFKMode = true, FastMode = true, UltraFastMode = false,
+        FarmChests = true, StopOnRareItem = true,
+        MaxTime = 120, TweenSpeed = 350, MaxFarmDistance = 4000, HopDelay = 8,
+        FPSLimit = 60
+    }
+end
+
+-- Local shortcut for cleaner code below (points to the same table)
+local Config = getgenv().Config 
+
+-- [2] SAVE/LOAD SYSTEM
+local function Save() 
+    pcall(function() 
+        writefile(FileName, Http:JSONEncode(Config)) 
+    end) 
+end
+
+-- Load settings immediately (Before Team Selector runs)
+if isfile(FileName) then 
+    pcall(function() 
+        local d = Http:JSONDecode(readfile(FileName)) 
+        for k,v in pairs(d) do 
+            Config[k] = v 
+        end 
+    end) 
+end
 
 -- [2] SAVE/LOAD
 local function Save() pcall(function() writefile(FileName, Http:JSONEncode(Config)) end) end
