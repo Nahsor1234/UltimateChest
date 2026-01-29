@@ -564,10 +564,12 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 -- ==================================================================
 -- [3] LOGIC & HOPPING
 -- ==================================================================
+
 local ChestCache, VisitedChests, CollectedPositions = {}, {}, {}
 local Hopping = false
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 
+-- [KEPT UNCHANGED]
 local function CheckRareItems()
     if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
     for _, item in pairs(RareItems) do
@@ -576,6 +578,7 @@ local function CheckRareItems()
     return false
 end
 
+-- [KEPT UNCHANGED]
 local function BlindHop()
     StatusLbl.Text = "API Bad. Blind Hopping..."
     StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
@@ -586,6 +589,7 @@ local function BlindHop()
     TeleportService:Teleport(game.PlaceId, LP)
 end
 
+-- [UPDATED SMART SERVER HOP]
 local function ServerHop(Reason)
     if Hopping then return end
     
@@ -616,13 +620,23 @@ local function ServerHop(Reason)
     
     local PlaceID = game.PlaceId
     local AllIDs = {}
-    local actualHour = os.date("!*t").hour
     
-    pcall(function() AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json")) end)
-    if not AllIDs or tonumber(AllIDs[1]) ~= actualHour then AllIDs = {actualHour} end
+    -- [FIX 1: Removed Hourly Reset]
+    -- Now strictly loads history so we never rejoin a recent server
+    pcall(function() 
+        if isfile("NotSameServers.json") then
+            AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json"))
+        end
+    end)
     
-    table.insert(AllIDs, game.JobId)
-    pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+    -- Ensure table is valid
+    if not AllIDs or type(AllIDs) ~= "table" then AllIDs = {} end
+    
+    -- Add Current Server to Blacklist immediately
+    if not table.find(AllIDs, game.JobId) then
+        table.insert(AllIDs, game.JobId)
+        pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+    end
     
     local function Scan()
         local foundAnything = ""
@@ -630,7 +644,9 @@ local function ServerHop(Reason)
         local apiErrors = 0 
         
         while true do
-            if apiErrors >= 2 then
+            -- [FIX 2: Increased Error Tolerance]
+            -- Wait a bit longer before giving up to BlindHop (which causes rejoins)
+            if apiErrors >= 5 then
                 StatusLbl.Text = "Force Hopping..."
                 task.wait(0.5)
                 BlindHop() 
@@ -644,13 +660,21 @@ local function ServerHop(Reason)
                 apiErrors = 0 
                 for _, v in pairs(result.data) do
                     local ID = tostring(v.id)
+                    -- [FIX 3: Strict History Check]
                     if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
-                        local Possible = true
-                        for _, Existing in pairs(AllIDs) do if ID == tostring(Existing) then Possible = false end end
+                        local IsNew = true
+                        for _, visitedID in pairs(AllIDs) do 
+                            if ID == tostring(visitedID) then 
+                                IsNew = false 
+                                break -- Optimization
+                            end 
+                        end
                         
-                        if Possible then
+                        if IsNew then
+                            -- Add to history immediately so we don't pick it again if hop fails
                             table.insert(AllIDs, ID)
                             pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+                            
                             StatusLbl.Text = "Joining " .. v.playing .. "/" .. v.maxPlayers .. "..."
                             
                             if getgenv().Config.Disable3DRender then
@@ -658,7 +682,7 @@ local function ServerHop(Reason)
                             end
 
                             TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
-                            task.wait(15) 
+                            task.wait(20) -- Increased wait to ensure teleport goes through
                             RunService:Set3dRenderingEnabled(true)
                         end
                     end
@@ -666,13 +690,14 @@ local function ServerHop(Reason)
                 if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else foundAnything = "" end
             else
                 apiErrors = apiErrors + 1
-                StatusLbl.Text = "API Busy ("..apiErrors.."/2)..."
-                task.wait(1.0)
+                StatusLbl.Text = "API Busy ("..apiErrors.."/5)..."
+                task.wait(1.5)
             end
         end
     end
     task.spawn(Scan)
 end
+
 
 -- ==================================================================
 -- [4] EVENTS & START
