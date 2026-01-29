@@ -432,28 +432,41 @@ local LastCacheRefresh = 0
 
 
 
--- [4] NAHSOR AUTO TEAM SELECT (Race Condition Fixed)
+-- [4] NAHSOR TEAM SELECTOR (Direct File Read)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
     local LP = game:GetService("Players").LocalPlayer
-    
+    local Http = game:GetService("HttpService")
+
     -- Wait for game to load
     repeat task.wait() until RS:FindFirstChild("Remotes") and RS.Remotes:FindFirstChild("CommF_")
 
-    -- Small buffer to let the Config File load completely
-    task.wait(1.5)
+    -- [CRITICAL FIX] READ THE FILE DIRECTLY
+    -- This ignores variables and checks exactly what is saved on your PC/Phone.
+    local TargetTeam = "Pirates" -- Default fallback
+    
+    if isfile("NahsorConfig.json") then
+        pcall(function()
+            local FileData = Http:JSONDecode(readfile("NahsorConfig.json"))
+            if FileData.Team then
+                TargetTeam = FileData.Team
+            end
+        end)
+    end
+    
+    -- Debug Print (Check your console F9 to see this!)
+    print("🎯 NAHSOR DEBUG: Target Team is -> " .. tostring(TargetTeam))
 
+    -- Join Loop
     local attempts = 0
     while attempts < 60 do 
-        local TargetTeam = getgenv().Config.Team
-        
-        if not TargetTeam then TargetTeam = "Pirates" end 
-
+        -- Stop if we are already on the correct team
         if LP.Team and LP.Team.Name == TargetTeam then 
-            print("✅ Successfully joined: " .. TargetTeam)
+            print("✅ Team Success: " .. TargetTeam)
             break 
         end
-         
+        
+        -- Force Join
         pcall(function() 
             RS.Remotes.CommF_:InvokeServer("SetTeam", TargetTeam) 
         end)
