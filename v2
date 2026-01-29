@@ -430,22 +430,40 @@ local LastPos = Vector3.new(0,0,0)
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local LastCacheRefresh = 0
 
--- [4] NAHSOR AUTO TEAM SELECT (Dynamic)
+
+
+-- [4] NAHSOR AUTO TEAM SELECT (Race Condition Fixed)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
     local LP = game:GetService("Players").LocalPlayer
+    
+    -- Wait for game to load
     repeat task.wait() until RS:FindFirstChild("Remotes") and RS.Remotes:FindFirstChild("CommF_")
 
-    local attempts = 0
-    local TargetTeam = getgenv().Config.Team or "Pirates"
+    -- Small buffer to let the Config File load completely
+    task.wait(1.5)
 
+    local attempts = 0
     while attempts < 60 do 
-        if LP.Team and LP.Team.Name == TargetTeam then break end
-        pcall(function() RS.Remotes.CommF_:InvokeServer("SetTeam", TargetTeam) end)
+        local TargetTeam = getgenv().Config.Team
+        
+        if not TargetTeam then TargetTeam = "Pirates" end 
+
+        if LP.Team and LP.Team.Name == TargetTeam then 
+            print("✅ Successfully joined: " .. TargetTeam)
+            break 
+        end
+         
+        pcall(function() 
+            RS.Remotes.CommF_:InvokeServer("SetTeam", TargetTeam) 
+        end)
+        
         attempts = attempts + 1
         task.wait(1)
     end
 end)
+
+
 
 -- [5] ANTI-AFK
 LP.Idled:Connect(function()
