@@ -620,12 +620,13 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 -- [3] LOGIC & HOPPING
 -- ==================================================================
 
--- // NAHSOR FINAL SMART HOP (Friend-Proof) //
+
+-- // NAHSOR FINAL SMART HOP (Timed Fallback) //
 local ChestCache, VisitedChests, CollectedPositions = {}, {}, {}
 local Hopping = false
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 
--- [KEPT UNCHANGED]
+-- [1] RARE ITEM CHECK
 local function CheckRareItems()
     if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
     for _, item in pairs(RareItems) do
@@ -634,7 +635,21 @@ local function CheckRareItems()
     return false
 end
 
--- [UPDATED SERVER HOP]
+-- [2] BLIND HOP (The Fallback)
+local function BlindHop()
+    StatusLbl.Text = "API Failed. Blind Hopping..."
+    StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+    
+    -- Turn off 3D render to load faster
+    if getgenv().Config.Disable3DRender then
+        pcall(function() RunService:Set3dRenderingEnabled(false) end)
+    end
+    
+    -- Standard Teleport (Roblox chooses the server)
+    TeleportService:Teleport(game.PlaceId, LP)
+end
+
+-- [3] SMART HOP LOGIC
 local function ServerHop(Reason)
     if Hopping then return end
     
@@ -665,30 +680,25 @@ local function ServerHop(Reason)
     local AllIDs = {}
     local FileName = "NotSameServers.json"
     
-    -- [FEATURE 1: SMART SESSION RESET]
-    -- If the file hasn't been updated in 30 minutes (1800 seconds), clear it.
-    -- This means if you leave for a while, you can farm old servers again.
+    -- [SESSION MANAGER: 30 Minute Reset]
     pcall(function()
         if isfile(FileName) then
             local fileData = HttpService:JSONDecode(readfile(FileName))
-            -- Check if "Timestamp" exists and is recent
+            -- If data is less than 30 mins old (1800s), keep it. Otherwise, clear it.
             if fileData.Timestamp and (os.time() - fileData.Timestamp) < 1800 then
                 AllIDs = fileData.IDs or {}
             else
                 print("♻️ Session Expired: Clearing Server History.")
-                AllIDs = {} -- Clear list if old
+                AllIDs = {} 
             end
         end
     end)
     
-    -- Ensure table is valid
     if not AllIDs or type(AllIDs) ~= "table" then AllIDs = {} end
     
-    -- [FEATURE 2: BLACKLIST CURRENT SERVER]
-    -- We assume the current server is "Visited" so we never come back.
+    -- Blacklist current server immediately
     if not table.find(AllIDs, game.JobId) then
         table.insert(AllIDs, game.JobId)
-        -- Save with current time
         pcall(function() 
             writefile(FileName, HttpService:JSONEncode({Timestamp = os.time(), IDs = AllIDs})) 
         end)
@@ -697,16 +707,23 @@ local function ServerHop(Reason)
     local function Scan()
         local foundAnything = ""
         local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
+        local apiErrors = 0 
         
         while true do
-            -- [FEATURE 3: REMOVED BLIND HOP]
-            -- We removed the "Force Hop" fallback because it prioritizes joining Friends.
-            -- Now we just retry the API infinitely until a valid server is found.
+            -- [TIMEOUT LOGIC: ~8 Seconds]
+            -- If API fails 5 times (5 x 1.5s wait = 7.5s), trigger Blind Hop.
+            if apiErrors >= 5 then
+                StatusLbl.Text = "API Dead. Force Hopping..."
+                task.wait(0.5)
+                BlindHop() 
+                break 
+            end
 
             local cursorUrl = url .. (foundAnything ~= "" and '&cursor=' .. foundAnything or "")
             local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
             
             if success and result and result.data then
+                apiErrors = 0 -- Reset error count on success
                 for _, v in pairs(result.data) do
                     local ID = tostring(v.id)
                     -- Check: Not Full AND Not Current Server
@@ -720,7 +737,7 @@ local function ServerHop(Reason)
                         end
                         
                         if IsNew then
-                            -- Add to history immediately
+                            -- Save History
                             table.insert(AllIDs, ID)
                             pcall(function() 
                                 writefile(FileName, HttpService:JSONEncode({Timestamp = os.time(), IDs = AllIDs})) 
@@ -740,9 +757,9 @@ local function ServerHop(Reason)
                 end
                 if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else foundAnything = "" end
             else
-                -- API Busy: Just wait and retry. DO NOT use BlindHop.
-                StatusLbl.Text = "API Busy... Retrying..."
-                task.wait(2)
+                apiErrors = apiErrors + 1
+                StatusLbl.Text = "API Busy ("..apiErrors.."/5)..."
+                task.wait(1.5) -- Wait before retrying
             end
         end
     end
