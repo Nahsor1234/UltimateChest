@@ -407,15 +407,20 @@ local LastPos = Vector3.new(0,0,0)
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local LastCacheRefresh = 0
 
--- [4] AUTO TEAM SELECT
-task_spawn(function()
-    repeat task_wait() until ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommF_")
+-- [4] NAHSOR AUTO TEAM SELECT (Dynamic)
+task.spawn(function()
+    local RS = game:GetService("ReplicatedStorage")
+    local LP = game:GetService("Players").LocalPlayer
+    repeat task.wait() until RS:FindFirstChild("Remotes") and RS.Remotes:FindFirstChild("CommF_")
+
     local attempts = 0
+    local TargetTeam = getgenv().Config.Team or "Pirates"
+
     while attempts < 60 do 
-        if LP.Team and LP.Team.Name == "Pirates" then break end
-        pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", "Pirates") end)
+        if LP.Team and LP.Team.Name == TargetTeam then break end
+        pcall(function() RS.Remotes.CommF_:InvokeServer("SetTeam", TargetTeam) end)
         attempts = attempts + 1
-        task_wait(1)
+        task.wait(1)
     end
 end)
 
