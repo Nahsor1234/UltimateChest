@@ -235,8 +235,8 @@ end)
 
 
 
--- // NAHSOR FINAL WEBHOOK SYSTEM //
--- [Fixes: Auto Bounty/Honor Label | Only Reports on Server Hop]
+-- // NAHSOR FINAL WEBHOOK SYSTEM v2 //
+-- [Fixes: Conditional Reporting | Adaptive Fruit-Only Mode]
 
 task.spawn(function()
     repeat task.wait(1) until getgenv().Config and getgenv().Stats
@@ -262,49 +262,83 @@ task.spawn(function()
         local request = http_request or request or HttpPost or syn.request
         if not request then return end
 
+        local stats = getgenv().Stats
+        local config = getgenv().Config
+        local chestCount = stats.Chests or 0
+        local fruitCount = #FruitsCollected
+
+        -- [RULE 1: SILENCE IF EMPTY]
+        -- If we found NO chests AND NO fruit, do not send a report.
+        if chestCount == 0 and fruitCount == 0 then
+            return 
+        end
+
         local currentBeli, currentBounty = 0, "0"
         pcall(function() 
             currentBeli = LP.Data.Beli.Value 
             currentBounty = tostring(LP.leaderstats["Bounty/Honor"].Value)
         end)
 
-        -- [FIX 1: DETECT TEAM FOR LABEL]
         local rewardLabel = "BOUNTY"
-        if LP.Team and LP.Team.Name == "Marines" then
-            rewardLabel = "HONOR " -- Added space for alignment
-        end
+        if LP.Team and LP.Team.Name == "Marines" then rewardLabel = "HONOR " end
 
-        local stats = getgenv().Stats
         local profit = currentBeli - (stats.StartMoney or currentBeli)
         local duration = os.time() - (stats.StartTime or os.time())
         local timeStr = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
         
-        local displayFruit, sideColor, blockTheme = "None", 8388863, "ini"
-        if #FruitsCollected > 0 then
+        local displayFruit = "None"
+        local sideColor = 8388863 -- Purple (Default)
+        local blockTheme = "ini"
+
+        if fruitCount > 0 then
             displayFruit = table.concat(FruitsCollected, ", ")
-            sideColor, blockTheme = 16766720, "fix"
+            sideColor = 16766720 -- Gold (Fruit Found)
+            blockTheme = "fix"
         end
 
-        -- Updated Template with rewardLabel variable
-        local textContent = string.format(
-            "```%s\nNAHSOR CHESTHUB\n------------------------------\n" ..
-            "👤 PLAYER  : %s\n⏱️ TIME    : %s\n📦 CHESTS  : %s\n💵 PROFIT  : $%s\n💰 TOTAL   : $%s\n" ..
-            "🍎 FRUIT   : %s\n------------------------------\n" ..
-            "⚔️ %s   : %s\n```",
-            blockTheme, LP.Name, timeStr, tostring(stats.Chests or 0), tostring(profit), tostring(currentBeli), displayFruit, rewardLabel, currentBounty
-        )
+        -- [RULE 2: ADAPTIVE UI MODE]
+        local textContent = ""
+        local embedFields = {}
+
+        if config.FarmChests then
+            -- [FULL MODE] (Chests + Money + Fruit)
+            textContent = string.format(
+                "```%s\nNAHSOR CHESTHUB\n------------------------------\n" ..
+                "👤 PLAYER  : %s\n⏱️ TIME    : %s\n📦 CHESTS  : %s\n💵 PROFIT  : $%s\n💰 TOTAL   : $%s\n" ..
+                "🍎 FRUIT   : %s\n------------------------------\n" ..
+                "⚔️ %s   : %s\n```",
+                blockTheme, LP.Name, timeStr, tostring(chestCount), tostring(profit), tostring(currentBeli), displayFruit, rewardLabel, currentBounty
+            )
+            
+            embedFields = {
+                {["name"] = "👤 PLAYER", ["value"] = "```" .. LP.Name .. "```", ["inline"] = false},
+                {["name"] = "⏱️ UPTIME", ["value"] = "```" .. timeStr .. "```", ["inline"] = true},
+                {["name"] = "📦 CHESTS", ["value"] = "```" .. tostring(chestCount) .. "```", ["inline"] = true},
+                {["name"] = "💵 PROFIT", ["value"] = "```$" .. tostring(profit) .. "```", ["inline"] = true},
+                {["name"] = "⚔️ " .. rewardLabel, ["value"] = "```" .. currentBounty .. "```", ["inline"] = true},
+                {["name"] = "🍎 FRUIT FOUND", ["value"] = "```" .. displayFruit .. "```", ["inline"] = false}
+            }
+        else
+            -- [FRUIT ONLY MODE] (Cleaner UI, No Money Stats)
+            textContent = string.format(
+                "```%s\nNAHSOR CHESTHUB\n------------------------------\n" ..
+                "👤 PLAYER  : %s\n⏱️ TIME    : %s\n🍎 FRUIT   : %s\n------------------------------\n" ..
+                "⚔️ %s   : %s\n```",
+                blockTheme, LP.Name, timeStr, displayFruit, rewardLabel, currentBounty
+            )
+
+            embedFields = {
+                {["name"] = "👤 PLAYER", ["value"] = "```" .. LP.Name .. "```", ["inline"] = false},
+                {["name"] = "⏱️ UPTIME", ["value"] = "```" .. timeStr .. "```", ["inline"] = true},
+                {["name"] = "🍎 FRUIT FOUND", ["value"] = "```" .. displayFruit .. "```", ["inline"] = false},
+                {["name"] = "⚔️ " .. rewardLabel, ["value"] = "```" .. currentBounty .. "```", ["inline"] = true}
+            }
+        end
 
         local embedData = {
             ["title"] = "💠 NAHSOR CHESTHUB",
             ["color"] = sideColor,
-            ["fields"] = {
-                {["name"] = "👤 PLAYER", ["value"] = "```" .. LP.Name .. "```", ["inline"] = false},
-                {["name"] = "⏱️ UPTIME", ["value"] = "```" .. timeStr .. "```", ["inline"] = true},
-                {["name"] = "📦 CHESTS", ["value"] = "```" .. tostring(stats.Chests or 0) .. "```", ["inline"] = true},
-                {["name"] = "💵 PROFIT", ["value"] = "```$" .. tostring(profit) .. "```", ["inline"] = true},
-                {["name"] = "⚔️ " .. rewardLabel, ["value"] = "```" .. currentBounty .. "```", ["inline"] = true},
-                {["name"] = "🍎 FRUIT FOUND", ["value"] = "```" .. displayFruit .. "```", ["inline"] = false}
-            },
+            ["fields"] = embedFields,
             ["timestamp"] = os.date("!*t")
         }
 
@@ -320,14 +354,8 @@ task.spawn(function()
         end)
     end
 
-    -- [FIX 2: DISABLE START REPORT]
-    -- We define the function so the main script doesn't crash, 
-    -- but we make it empty so it sends nothing when the script loads.
-    getgenv().SendWebhook = function(msg) 
-        -- Do nothing. We only report on Teleport now.
-    end
+    getgenv().SendWebhook = function(msg) end
 
-    -- TRIGGER: Only runs when hopping servers (After collecting chests)
     game:GetService("Players").LocalPlayer.OnTeleport:Connect(function(State)
         if State == Enum.TeleportState.InProgress then
             MasterReport()
@@ -335,7 +363,6 @@ task.spawn(function()
         end
     end)
 end)
-
 
 
 
