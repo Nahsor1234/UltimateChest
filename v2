@@ -617,7 +617,7 @@ pcall(function() if LP.PlayerGui:FindFirstChild("ChestHub_Core") then LP.PlayerG
 
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- Black
-MainFrame.Position = UDim2.new(0.02, 0, 0.4, 0)
+MainFrame.Position = UDim2.new(0.5, 0, 0.4, 0)
 MainFrame.Size = UDim2.new(0, 180, 0, 0)
 MainFrame.AutomaticSize = Enum.AutomaticSize.Y
 MainFrame.ZIndex = 10 
