@@ -56,7 +56,7 @@ end
 
 -- [4] FLOATING BUTTON
 local OpenBtn = Create("TextButton", {
-    Parent=Gui, Size=UDim2.new(0,40,0,40), Position=UDim2.new(0.05,0,0.4,0),
+    Parent=Gui, Size=UDim2.new(0,40,0,40), Position=UDim2.new(0.9,0,0.4,0),
     BackgroundColor3=Color3.fromRGB(18,18,18), Text="⚙", TextSize=22,
     TextColor3=Color3.fromRGB(240,240,240), AutoButtonColor=false, Font=Enum.Font.GothamBold
 })
