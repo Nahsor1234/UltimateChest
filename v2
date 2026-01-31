@@ -650,155 +650,193 @@ TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
 EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
 StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 
--- ==================================================================
--- [3] LOGIC & HOPPING
--- ==================================================================
 
 
--- // NAHSOR FINAL SMART HOP (Timed Fallback) //
-local ChestCache, VisitedChests, CollectedPositions = {}, {}, {}
-local Hopping = false
-local RareItems = {"God's Chalice", "Fist of Darkness"}
+-- //////////////////////////////////////////////////////////////////
+-- [SECTION 3] MAIN FARMING LOGIC (Ghost Chest & Blacklist Fix)
+-- //////////////////////////////////////////////////////////////////
 
--- [1] RARE ITEM CHECK
+-- [1] INSTANT HISTORY UPDATE (Prevents Rejoining Same Server)
+local HistoryFile = "NotSameServers.json"
+local function UpdateServerHistory()
+    local History = {}
+    local CurrentTime = os.time()
+    
+    pcall(function()
+        if isfile(HistoryFile) then
+            local fileData = HttpService:JSONDecode(readfile(HistoryFile))
+            if fileData.Timestamp and (CurrentTime - fileData.Timestamp) < 1800 then
+                History = fileData.IDs or {}
+            end
+        end
+    end)
+
+    if not table.find(History, game.JobId) then
+        table.insert(History, game.JobId)
+        pcall(function() 
+            writefile(HistoryFile, HttpService:JSONEncode({Timestamp = CurrentTime, IDs = History})) 
+        end)
+        print("🔒 Current Server Blacklisted Immediately.")
+    end
+    return History
+end
+UpdateServerHistory() -- Run on load
+
+-- [2] HELPER FUNCTIONS
 local function CheckRareItems()
-    if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
-    for _, item in pairs(RareItems) do
+    local Rares = {"God's Chalice", "Fist of Darkness"}
+    if not LP.Character or not LP.Backpack then return false end
+    for _, item in pairs(Rares) do
         if LP.Backpack:FindFirstChild(item) or LP.Character:FindFirstChild(item) then return true end
     end
     return false
 end
 
--- [2] BLIND HOP (The Fallback)
-local function BlindHop()
-    StatusLbl.Text = "API Failed. Blind Hopping..."
-    StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
-    
-    -- Turn off 3D render to load faster
-    if getgenv().Config.Disable3DRender then
-        pcall(function() RunService:Set3dRenderingEnabled(false) end)
-    end
-    
-    -- Standard Teleport (Roblox chooses the server)
-    TeleportService:Teleport(game.PlaceId, LP)
-end
+-- [3] SMART SERVER HOP
+local function ServerHop()
+    -- RAM Clean
+    for i=1,3 do task.wait(0.1) local j=gcinfo() end
 
--- [3] SMART HOP LOGIC
-local function ServerHop(Reason)
-    if Hopping then return end
-    
-    SendWebhook(nil) -- Normal Report
-    
-    StatusLbl.Text = "Deep Cleaning RAM..."
-    table.clear(ChestCache)
-    table.clear(VisitedChests)
-    table.clear(CollectedPositions)
-    
-    -- Garbage Collection
-    for i = 1, 3 do task.wait(0.1) local junk = gcinfo() end
+    if getgenv().Config.StopOnRareItem and CheckRareItems() then return end
 
-    if getgenv().Config.StopOnRareItem and CheckRareItems() then
-        StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
-        SendWebhook("God's Chalice / Fist")
-        Hopping = true
-        return
-    end
-
-    Hopping = true
-    StatusLbl.Text = "Cooling Down (3s)..."
-    task.wait(3) 
-
-    StatusLbl.Text = "Searching Server..."
-    
+    local AllIDs = UpdateServerHistory()
     local PlaceID = game.PlaceId
-    local AllIDs = {}
-    local FileName = "NotSameServers.json"
     
-    -- [SESSION MANAGER: 30 Minute Reset]
-    pcall(function()
-        if isfile(FileName) then
-            local fileData = HttpService:JSONDecode(readfile(FileName))
-            -- If data is less than 30 mins old (1800s), keep it. Otherwise, clear it.
-            if fileData.Timestamp and (os.time() - fileData.Timestamp) < 1800 then
-                AllIDs = fileData.IDs or {}
-            else
-                print("♻️ Session Expired: Clearing Server History.")
-                AllIDs = {} 
-            end
-        end
-    end)
-    
-    if not AllIDs or type(AllIDs) ~= "table" then AllIDs = {} end
-    
-    -- Blacklist current server immediately
-    if not table.find(AllIDs, game.JobId) then
-        table.insert(AllIDs, game.JobId)
-        pcall(function() 
-            writefile(FileName, HttpService:JSONEncode({Timestamp = os.time(), IDs = AllIDs})) 
-        end)
+    local function BlindHop()
+        if getgenv().Config.Disable3DRender then pcall(function() RS:Set3dRenderingEnabled(false) end) end
+        TeleportService:Teleport(PlaceID, LP)
     end
-    
-    local function Scan()
-        local foundAnything = ""
-        local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
-        local apiErrors = 0 
-        
-        while true do
-            -- [TIMEOUT LOGIC: ~8 Seconds]
-            -- If API fails 5 times (5 x 1.5s wait = 7.5s), trigger Blind Hop.
-            if apiErrors >= 5 then
-                StatusLbl.Text = "API Dead. Force Hopping..."
-                task.wait(0.5)
-                BlindHop() 
-                break 
-            end
 
-            local cursorUrl = url .. (foundAnything ~= "" and '&cursor=' .. foundAnything or "")
-            local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
-            
+    local function Scan()
+        local cursor = ""
+        local apiErrors = 0
+        while true do
+            if apiErrors >= 5 then BlindHop() break end 
+
+            local url = 'https://games.roblox.com/v1/games/'..PlaceID..'/servers/Public?sortOrder=Asc&limit=100'..(cursor ~= "" and "&cursor="..cursor or "")
+            local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+
             if success and result and result.data then
-                apiErrors = 0 -- Reset error count on success
+                apiErrors = 0
                 for _, v in pairs(result.data) do
                     local ID = tostring(v.id)
-                    -- Check: Not Full AND Not Current Server
                     if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
                         local IsNew = true
-                        for _, visitedID in pairs(AllIDs) do 
-                            if ID == tostring(visitedID) then 
-                                IsNew = false 
-                                break 
-                            end 
+                        for _, old in pairs(AllIDs) do 
+                            if ID == tostring(old) then IsNew = false break end 
                         end
                         
                         if IsNew then
-                            -- Save History
                             table.insert(AllIDs, ID)
-                            pcall(function() 
-                                writefile(FileName, HttpService:JSONEncode({Timestamp = os.time(), IDs = AllIDs})) 
-                            end)
-                            
-                            StatusLbl.Text = "Joining " .. v.playing .. "/" .. v.maxPlayers .. "..."
-                            
-                            if getgenv().Config.Disable3DRender then
-                                pcall(function() RunService:Set3dRenderingEnabled(false) end)
-                            end
-
+                            pcall(function() writefile(HistoryFile, HttpService:JSONEncode({Timestamp=os.time(), IDs=AllIDs})) end)
                             TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
-                            task.wait(20) -- Wait for teleport
-                            RunService:Set3dRenderingEnabled(true)
+                            task.wait(20)
                         end
                     end
                 end
-                if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else foundAnything = "" end
+                cursor = result.nextPageCursor or ""
             else
                 apiErrors = apiErrors + 1
-                StatusLbl.Text = "API Busy ("..apiErrors.."/5)..."
-                task.wait(1.5) -- Wait before retrying
+                task.wait(1.5)
             end
         end
     end
     task.spawn(Scan)
 end
+
+-- [4] MOBILE TWEEN (With Ghost Check)
+local function Tween(targetPart)
+    if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then return end
+    if not targetPart or not targetPart.Parent then return end -- Check before starting
+
+    local HRP = LP.Character.HumanoidRootPart
+    local Dist = (HRP.Position - targetPart.Position).Magnitude
+    local Speed = getgenv().Config.TweenSpeed or 350
+    local Time = Dist / Speed
+    
+    local T = TweenService:Create(HRP, TweenInfo.new(Time, Enum.EasingStyle.Linear), {CFrame = targetPart.CFrame})
+    T:Play()
+    
+    local BV = Instance.new("BodyVelocity")
+    BV.Parent = HRP
+    BV.Velocity = Vector3.new(0,0,0)
+    BV.MaxForce = Vector3.new(9e9,9e9,9e9)
+    
+    -- [GHOST CHECK LOOP]
+    -- While flying, we check every 0.1s if the chest still exists.
+    local CheckLoop
+    CheckLoop = game:GetService("RunService").Heartbeat:Connect(function()
+        if not targetPart or not targetPart.Parent then
+            T:Cancel() -- Stop flying
+            BV:Destroy()
+            CheckLoop:Disconnect()
+        end
+        -- Stop if close enough
+        if (HRP.Position - targetPart.Position).Magnitude < 5 then
+            T:Cancel()
+            BV:Destroy()
+            CheckLoop:Disconnect()
+        end
+    end)
+
+    T.Completed:Connect(function() 
+        if BV then BV:Destroy() end 
+        if CheckLoop then CheckLoop:Disconnect() end
+    end)
+    
+    -- Wait for tween to finish (or be cancelled)
+    T.Completed:Wait()
+end
+
+-- [5] MAIN LOOP
+task.spawn(function()
+    task.wait(2)
+    if getgenv().Config.Disable3DRender then RS:Set3dRenderingEnabled(false) end
+    if setfpscap then setfpscap(getgenv().Config.FPSLimit or 60) end
+
+    while true do
+        if getgenv().Config.FarmChests then
+            local FoundChest = false
+            
+            -- Scan carefully
+            for _, v in pairs(workspace:GetDescendants()) do
+                -- [STRICTER CHEST CHECK]
+                -- 1. Must contain "Chest" or "Box"
+                -- 2. Must be a Part
+                -- 3. Must be VISIBLE (Transparency < 1). Ghost chests are often invisible.
+                if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") and v.Transparency < 1 then
+                    
+                    if (LP.Character.HumanoidRootPart.Position - v.Position).Magnitude < getgenv().Config.MaxFarmDistance then
+                        FoundChest = true
+                        
+                        -- Tween to it (Now includes Ghost Check)
+                        Tween(v)
+                        
+                        -- Collect if it still exists
+                        if v and v.Parent then
+                            firetouchinterest(LP.Character.HumanoidRootPart, v, 0)
+                            firetouchinterest(LP.Character.HumanoidRootPart, v, 1)
+                            getgenv().Stats.Chests = getgenv().Stats.Chests + 1
+                            v:Destroy() -- Delete client-side so we don't scan it again
+                        end
+                    end
+                end
+            end
+            
+            if not FoundChest then
+                ServerHop()
+            end
+        end
+        task.wait(0.5)
+        
+        if (os.time() - getgenv().Stats.StartTime) > getgenv().Config.MaxTime then
+            ServerHop()
+        end
+    end
+end)
+
+
+
 
 
 -- ==================================================================
