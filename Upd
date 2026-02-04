@@ -584,6 +584,9 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 -- [SECTION 3] MAIN FARMING LOGIC (Ghost Chest & Blacklist Fix)
 -- //////////////////////////////////////////////////////////////////
 
+
+
+
 -- // NAHSOR SMART HOP SYSTEM v15 //
 local ChestCache, VisitedChests, CollectedPositions = {}, {}, {}
 local Hopping = false
@@ -750,8 +753,6 @@ local function ServerHop(Reason)
     
     task.spawn(Scan)
                     end
-
-
 
 
 
