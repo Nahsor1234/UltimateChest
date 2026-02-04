@@ -584,32 +584,31 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 -- [SECTION 3] MAIN FARMING LOGIC (Ghost Chest & Blacklist Fix)
 -- //////////////////////////////////////////////////////////////////
 
-
-
--- // NAHSOR FINAL SMART HOP (Immediate Blacklist Fix) //
+-- // NAHSOR SMART HOP SYSTEM v15 //
 local ChestCache, VisitedChests, CollectedPositions = {}, {}, {}
 local Hopping = false
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local HistoryFile = "NotSameServers.json"
 
 -- [CRITICAL FIX] INSTANT BLACKLIST FUNCTION
--- We run this the moment the script loads to "burn" the current server immediately.
+-- Burns the current server ID into the file immediately to prevent rejoining.
 local function UpdateServerHistory()
     local History = {}
     local CurrentTime = os.time()
     
-    -- 1. Read existing file
-    pcall(function()
-        if isfile(HistoryFile) then
-            local fileData = HttpService:JSONDecode(readfile(HistoryFile))
-            -- 30 Minute Session Reset Logic
-            if fileData.Timestamp and (CurrentTime - fileData.Timestamp) < 1800 then
-                History = fileData.IDs or {}
-            else
-                print("♻️ Session Expired: Clearing Server History.")
-            end
-        end
+    -- 1. Read existing file safely
+    local success, fileData = pcall(function()
+        return HttpService:JSONDecode(readfile(HistoryFile))
     end)
+
+    if success and fileData then
+        -- 30 Minute Session Reset (Keeps history fresh)
+        if fileData.Timestamp and (CurrentTime - fileData.Timestamp) < 1800 then
+            History = fileData.IDs or {}
+        else
+            print("♻️ Session Expired: Clearing Server History.")
+        end
+    end
 
     -- 2. Add CURRENT server if missing
     if not table.find(History, game.JobId) then
@@ -624,7 +623,6 @@ local function UpdateServerHistory()
 end
 
 -- [IMPORTANT] RUN THIS INSTANTLY!
--- This ensures the server is blocked even if you crash 10 seconds later.
 UpdateServerHistory()
 
 -- [1] RARE ITEM CHECK
@@ -638,44 +636,46 @@ end
 
 -- [2] BLIND HOP (Fallback)
 local function BlindHop()
-    StatusLbl.Text = "API Failed. Blind Hopping..."
-    StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+    if StatusLbl then 
+        StatusLbl.Text = "API Failed. Blind Hopping..."
+        StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+    end
     
+    -- Disable rendering to save resources during crash/hop
     if getgenv().Config.Disable3DRender then
         pcall(function() RunService:Set3dRenderingEnabled(false) end)
     end
+    
     TeleportService:Teleport(game.PlaceId, LP)
 end
 
--- [3] SMART HOP LOGIC
+-- [3] SMART HOP LOGIC (OPTIMIZED)
 local function ServerHop(Reason)
     if Hopping then return end
+    Hopping = true -- Lock the function
     
-    SendWebhook(nil)
+    -- Optional: Send Webhook status
+    if getgenv().SendWebhook then getgenv().SendWebhook(nil) end
     
-    StatusLbl.Text = "Deep Cleaning RAM..."
+    if StatusLbl then StatusLbl.Text = "Deep Cleaning RAM..." end
+    
+    -- Memory Cleanup
     table.clear(ChestCache)
     table.clear(VisitedChests)
     table.clear(CollectedPositions)
-    
-    for i = 1, 3 do task.wait(0.1) local junk = gcinfo() end
+    for i = 1, 3 do task.wait(0.1) collectgarbage("collect") end
 
+    -- Rare Item Guard
     if getgenv().Config.StopOnRareItem and CheckRareItems() then
-        StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
-        SendWebhook("God's Chalice / Fist")
-        Hopping = true
+        if StatusLbl then StatusLbl.Text = "RARE ITEM FOUND! STOPPED." end
+        if getgenv().SendWebhook then getgenv().SendWebhook("God's Chalice / Fist") end
+        Hopping = true -- Keep locked so we don't hop
         return
     end
 
-    Hopping = true
-    StatusLbl.Text = "Cooling Down (3s)..."
-    task.wait(3) 
-
-    StatusLbl.Text = "Searching Server..."
+    if StatusLbl then StatusLbl.Text = "Searching Server..." end
     local PlaceID = game.PlaceId
-    
-    -- Refresh history one last time before scanning
-    local AllIDs = UpdateServerHistory()
+    local AllIDs = UpdateServerHistory() -- Refresh blacklist one last time
     
     local function Scan()
         local foundAnything = ""
@@ -683,8 +683,9 @@ local function ServerHop(Reason)
         local apiErrors = 0 
         
         while true do
+            -- CONDITION 1: API IS DEAD -> BLIND HOP
             if apiErrors >= 5 then
-                StatusLbl.Text = "API Dead. Force Hopping..."
+                if StatusLbl then StatusLbl.Text = "API Dead. Force Hopping..." end
                 task.wait(0.5)
                 BlindHop() 
                 break 
@@ -697,7 +698,7 @@ local function ServerHop(Reason)
                 apiErrors = 0 
                 for _, v in pairs(result.data) do
                     local ID = tostring(v.id)
-                    -- Check: Not Full AND Not Current AND Not in History
+                    -- Check: Not Full (Leave 2 slots) AND Not Current AND Not Blacklisted
                     if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
                         local IsNew = true
                         for _, visitedID in pairs(AllIDs) do 
@@ -708,34 +709,49 @@ local function ServerHop(Reason)
                         end
                         
                         if IsNew then
-                            -- Pre-Block the target server so we don't pick it again
+                            -- FOUND A SERVER!
                             table.insert(AllIDs, ID)
                             pcall(function() 
                                 writefile(HistoryFile, HttpService:JSONEncode({Timestamp = os.time(), IDs = AllIDs})) 
                             end)
                             
-                            StatusLbl.Text = "Joining " .. v.playing .. "/" .. v.maxPlayers .. "..."
+                            if StatusLbl then StatusLbl.Text = "Joining " .. v.playing .. "/" .. v.maxPlayers .. "..." end
                             
                             if getgenv().Config.Disable3DRender then
                                 pcall(function() RunService:Set3dRenderingEnabled(false) end)
                             end
 
                             TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
-                            task.wait(20)
-                            RunService:Set3dRenderingEnabled(true)
+                            
+                            -- CRITICAL FIX: Stop scanning immediately!
+                            return 
                         end
                     end
                 end
-                if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else foundAnything = "" end
+                
+                -- CONDITION 2: NEXT PAGE OR END OF LIST?
+                if result.nextPageCursor and result.nextPageCursor ~= "null" then 
+                    foundAnything = result.nextPageCursor 
+                else 
+                    -- We scanned ALL servers and found nothing.
+                    if StatusLbl then StatusLbl.Text = "No Servers Found. Random Hop." end
+                    task.wait(1)
+                    BlindHop()
+                    break
+                end
             else
+                -- CONDITION 3: API ERROR
                 apiErrors = apiErrors + 1
-                StatusLbl.Text = "API Busy ("..apiErrors.."/5)..."
+                if StatusLbl then StatusLbl.Text = "API Busy ("..apiErrors.."/5)..." end
                 task.wait(1.5)
             end
         end
     end
+    
     task.spawn(Scan)
-end
+                    end
+
+
 
 
 
