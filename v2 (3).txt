@@ -1,0 +1,1004 @@
+-- // NAHSOR CONFIG MANAGER V18 [LITE FIXED] //
+local P, HS, IS, TS = game:GetService("Players"), game:GetService("HttpService"), game:GetService("UserInputService"), game:GetService("TweenService")
+local LP, U2, C3, UD, V2 = P.LocalPlayer, UDim2.new, Color3.fromRGB, UDim.new, Vector2.new
+local Font, Fn = Enum.Font.GothamBold, "NahsorConfig.json"
+
+-- [CONFIG SETUP]
+if not getgenv().Config then
+    getgenv().Config = {Team="Pirates", Disable3DRender=true, AFKMode=true, FastMode=true, UltraFastMode=false, FarmChests=true, StopOnRareItem=true, MaxTime=120, TweenSpeed=350, MaxFarmDistance=4000, HopDelay=8, FPSLimit=60}
+end
+local Cfg = getgenv().Config
+local function Save() pcall(function() writefile(Fn, HS:JSONEncode(Cfg)) end) end
+if isfile(Fn) then pcall(function() local d=HS:JSONDecode(readfile(Fn)) for k,v in pairs(d) do Cfg[k]=v end end) end
+if Cfg.FPSLimit and setfpscap then setfpscap(Cfg.FPSLimit) end
+
+-- [UI HELPERS]
+local GuiName = "NahsorConfig"
+pcall(function() if LP.PlayerGui:FindFirstChild(GuiName) then LP.PlayerGui[GuiName]:Destroy() end end)
+local Gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui")); Gui.Name=GuiName; Gui.DisplayOrder=9999
+
+local function Make(cls, props, par)
+    local x = Instance.new(cls); for k,v in pairs(props) do x[k]=v end
+    if par then x.Parent=par end; return x
+end
+local function Tw(obj, props, t) TS:Create(obj, TweenInfo.new(t or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play() end
+
+-- [THEME COLORS]
+local C_Dark, C_Gray, C_Cyan, C_Text = C3(12,12,12), C3(18,18,18), C3(0,255,200), C3(240,240,240)
+
+-- [NOTIFICATIONS]
+local function Notify(txt)
+    local N = Make("Frame", {Size=U2(0,200,0,40), Position=U2(1,20,0.85,0), BackgroundColor3=C3(30,30,30)}, Gui)
+    Make("UICorner", {CornerRadius=UD(0,8)}, N); Make("UIStroke", {Color=C3(0,255,150), Thickness=1}, N)
+    Make("TextLabel", {Parent=N, Size=U2(1,0,1,0), BackgroundTransparency=1, Text=txt, TextColor3=C3(255,255,255), Font=Font, TextSize=14})
+    Tw(N, {Position=U2(1,-220,0.85,0)}, 0.3); task.wait(2); Tw(N, {Position=U2(1,20,0.85,0)}, 0.3); task.wait(0.3); N:Destroy()
+end
+
+-- [MAIN UI STRUCTURE]
+local OpenBtn = Make("TextButton", {Size=U2(0,40,0,40), Position=U2(0.85,-10,0.4,0), BackgroundColor3=C_Gray, Text="⚙", TextSize=22, TextColor3=C_Text, AutoButtonColor=false, Font=Font}, Gui)
+Make("UICorner", {CornerRadius=UD(0,10)}, OpenBtn); Make("UIStroke", {Color=C3(60,60,60), Thickness=1.5}, OpenBtn)
+
+local Main = Make("Frame", {Visible=false, Size=U2(0,280,0,380), Position=U2(0.5,0,0.5,0), AnchorPoint=V2(0.5,0.5), BackgroundColor3=C_Dark, BackgroundTransparency=0}, Gui)
+Make("UICorner", {CornerRadius=UD(0,10)}, Main); Make("UIStroke", {Color=C3(40,40,40)}, Main)
+
+local Head = Make("Frame", {Size=U2(1,0,0,40), BackgroundColor3=C_Gray}, Main); Make("UICorner", {CornerRadius=UD(0,10)}, Head)
+Make("Frame", {Size=U2(1,0,0,10), Position=U2(0,0,1,-10), BackgroundColor3=C_Gray, BorderSizePixel=0}, Head)
+Make("TextLabel", {Parent=Head, Size=U2(0,120,1,0), Position=U2(0,15,0,0), BackgroundTransparency=1, Text="NAHSOR CONFIG", TextColor3=C3(255,255,255), TextSize=13, Font=Font, TextXAlignment=0})
+Make("TextLabel", {Parent=Head, Size=U2(0,30,1,0), Position=U2(0,115,0,0), BackgroundTransparency=1, Text="v1.0", TextColor3=C3(100,255,180), TextSize=10, Font=Enum.Font.Gotham, TextXAlignment=0})
+Make("Frame", {Parent=Head, Size=U2(1,0,0,1), Position=U2(0,0,1,-1), BackgroundColor3=C_Cyan, BorderSizePixel=0})
+
+local function HeadBtn(txt, off, col, call)
+    local b = Make("TextButton", {Parent=Head, Size=U2(0,30,0,30), Position=U2(1,off,0.5,-15), BackgroundColor3=C3(25,25,25), Text=txt, TextColor3=col, Font=Font, TextSize=14, AutoButtonColor=false})
+    Make("UICorner", {CornerRadius=UD(0,6)}, b)
+    b.MouseButton1Click:Connect(function() Tw(b,{BackgroundColor3=C3(50,50,50)},0.1); task.wait(0.1); Tw(b,{BackgroundColor3=C3(25,25,25)},0.1); call() end)
+end
+
+-- [SIDE MENU]
+local Side = Make("Frame", {Parent=Main, Visible=false, Size=U2(0,120,0,260), Position=U2(0,-20,0,0), BackgroundColor3=C3(15,15,15), BackgroundTransparency=1, ZIndex=-1})
+Make("UICorner", {CornerRadius=UD(0,10)}, Side); Make("UIStroke", {Color=C3(40,40,40)}, Side)
+local SideSc = Make("ScrollingFrame", {Parent=Side, Size=U2(1,-8,1,-20), Position=U2(0,4,0,10), BackgroundTransparency=1, ScrollBarThickness=2, CanvasSize=U2(0,0,0,0), BorderSizePixel=0, ScrollBarImageColor3=C3(60,60,60)})
+local SideList = Make("UIListLayout", {Parent=SideSc, Padding=UD(0,5), SortOrder=Enum.SortOrder.LayoutOrder})
+SideList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() SideSc.CanvasSize=U2(0,0,0,SideList.AbsoluteContentSize.Y+20) end)
+
+local function AddIslands(sea, col, list)
+    local G = Make("Frame", {Parent=SideSc, Size=U2(1,0,0,0), AutomaticSize=Enum.AutomaticSize.Y, BackgroundTransparency=1})
+    Make("TextLabel", {Parent=G, Size=U2(1,0,0,20), Text=sea, TextColor3=col, Font=Font, TextSize=10, BackgroundTransparency=1, TextXAlignment=0, TextTransparency=1})
+    Make("UIListLayout", {Parent=G, SortOrder=Enum.SortOrder.LayoutOrder, Padding=UD(0,2)})
+    for _,v in pairs(list) do Make("TextLabel", {Parent=G, Size=U2(1,0,0,14), Text="• "..v, TextColor3=C3(180,180,180), Font=Enum.Font.Gotham, TextSize=9, BackgroundTransparency=1, TextXAlignment=0, TextTransparency=1}) end
+end
+AddIslands("FIRST SEA", C3(100,200,255), {"Skylands (Upper)", "Marine Fortress", "Impel Down"})
+AddIslands("SECOND SEA", C3(255,150,50), {"Kingdom of Rose", "Green Zone", "Cursed Ship", "Snow Mountain"})
+AddIslands("THIRD SEA", C3(200,100,255), {"Castle on the Sea", "Hydra Island", "Floating Turtle", "Haunted Castle"})
+
+-- [SETTINGS LIST]
+local Cont = Make("Frame", {Parent=Main, Size=U2(1,0,1,-85), Position=U2(0,0,0,40), BackgroundTransparency=1, ClipsDescendants=true})
+local Scr = Make("ScrollingFrame", {Parent=Cont, Size=U2(1,0,1,0), BackgroundTransparency=1, ScrollBarThickness=2, CanvasSize=U2(0,0,0,0), ScrollBarImageColor3=C3(80,80,80)})
+local List = Make("UIListLayout", {Parent=Scr, SortOrder=Enum.SortOrder.LayoutOrder}); List:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() Scr.CanvasSize=U2(0,0,0,List.AbsoluteContentSize.Y) end)
+
+-- [FOOTER]
+local Foot = Make("Frame", {Parent=Main, Size=U2(1,0,0,45), Position=U2(0,0,1,-45), BackgroundColor3=C_Gray, BorderSizePixel=0}); Make("UICorner", {CornerRadius=UD(0,10)}, Foot)
+Make("Frame", {Parent=Foot, Size=U2(1,0,0,10), BackgroundColor3=C_Gray, BorderSizePixel=0}); Make("Frame", {Parent=Foot, Size=U2(1,0,0,1), BackgroundColor3=C3(35,35,35), BorderSizePixel=0})
+local InfoLbl = Make("TextLabel", {Parent=Foot, Size=U2(1,-20,1,-4), Position=U2(0,10,0,4), BackgroundTransparency=1, Text="Tap [?] for info.", TextColor3=C3(120,120,120), TextSize=11, Font=Enum.Font.Gotham, TextXAlignment=0, TextYAlignment=0, TextWrapped=true})
+
+-- [LOGIC GENERATOR]
+local function AddOpt(name, k, typ, info)
+    local R = Make("Frame", {Parent=Scr, Size=U2(1,0,0,40), BackgroundTransparency=1})
+    Make("Frame", {Parent=R, Size=U2(1,-20,0,1), Position=U2(0,10,1,-1), BackgroundColor3=C3(25,25,25), BorderSizePixel=0})
+    Make("TextLabel", {Parent=R, Size=U2(0.6,0,1,0), Position=U2(0,15,0,0), BackgroundTransparency=1, Text=name, TextColor3=C3(200,200,200), TextSize=12, Font=Enum.Font.GothamMedium, TextXAlignment=0})
+    local IB = Make("TextButton", {Parent=R, Size=U2(0,20,0,20), Position=U2(0,140,0.5,-10), BackgroundTransparency=1, Text="?", TextColor3=C3(80,80,80), TextSize=12, Font=Font})
+    IB.MouseButton1Click:Connect(function() InfoLbl.Text=info; Tw(InfoLbl,{TextColor3=C3(255,255,255)},0.2); task.wait(0.3); Tw(InfoLbl,{TextColor3=C3(120,120,120)},0.5) end)
+
+    if typ=="Bool" then
+        local B = Make("TextButton", {Parent=R, Size=U2(0,36,0,18), Position=U2(1,-50,0.5,-9), AutoButtonColor=false, Text="", BackgroundColor3=C3(40,40,40)}); Make("UICorner", {CornerRadius=UD(1,0)}, B)
+        local C = Make("Frame", {Parent=B, Size=U2(0,14,0,14), Position=U2(0,2,0.5,-7), BackgroundColor3=C3(255,255,255)}); Make("UICorner", {CornerRadius=UD(1,0)}, C)
+        local function Upd() if Cfg[k] then Tw(B,{BackgroundColor3=C_Cyan},0.2); Tw(C,{Position=U2(1,-16,0.5,-7)},0.2) else Tw(B,{BackgroundColor3=C3(40,40,40)},0.2); Tw(C,{Position=U2(0,2,0.5,-7)},0.2) end end
+        B.MouseButton1Click:Connect(function() Cfg[k]=not Cfg[k]; Upd(); Save() end); Upd()
+    elseif typ=="Team" then
+        local B = Make("TextButton", {Parent=R, Size=U2(0,70,0,24), Position=U2(1,-85,0.5,-12), BackgroundColor3=C3(20,20,20), TextColor3=C_Cyan, Text=Cfg[k], Font=Font, TextSize=11, AutoButtonColor=false}); Make("UICorner", {CornerRadius=UD(0,4)}, B); Make("UIStroke", {Color=C3(50,50,50),Thickness=1}, B)
+        B.MouseButton1Click:Connect(function() Cfg[k]=(Cfg[k]=="Pirates" and "Marines" or "Pirates"); B.Text=Cfg[k]; Save() end)
+    else
+        local B = Make("TextBox", {Parent=R, Size=U2(0,50,0,24), Position=U2(1,-65,0.5,-12), BackgroundColor3=C3(20,20,20), TextColor3=C_Cyan, Text=tostring(Cfg[k]), Font=Font, TextSize=12}); Make("UICorner", {CornerRadius=UD(0,4)}, B); Make("UIStroke", {Color=C3(50,50,50),Thickness=1}, B)
+        B.FocusLost:Connect(function() local n=tonumber(B.Text); if n then Cfg[k]=n; Save(); if k=="FPSLimit" and setfpscap then setfpscap(n) end else B.Text=tostring(Cfg[k]) end end)
+    end
+end
+
+AddOpt("Select Team","Team","Team","Switch Team (Pirates/Marines).")
+AddOpt("Farm Chests","FarmChests","Bool","ON=Chest+Fruit / Fruit Only.")
+AddOpt("3D Rendering","Disable3DRender","Bool","Stops rendering world. Saves CPU.")
+AddOpt("AFK Overlay","AFKMode","Bool","Black screen overlay. Saves battery.")
+AddOpt("Fast Mode","FastMode","Bool","Lowers graphics to boost FPS.")
+AddOpt("Ultra Fast","UltraFastMode","Bool","Removes map parts. Extreme speed.")
+AddOpt("Stop on Rare","StopOnRareItem","Bool","Pauses script if rare item found.")
+AddOpt("Time Limit","MaxTime","Num","Server hop timer (seconds).")
+AddOpt("Tween Speed","TweenSpeed","Num","Fly speed.")
+AddOpt("Max Dist","MaxFarmDistance","Num","Max distance to target chests.")
+AddOpt("Hop Delay","HopDelay","Num","Wait time before changing servers.")
+AddOpt("FPS Limit","FPSLimit","Num","Limits max FPS to save battery.")
+
+-- [FIXED TOGGLE LOGIC]
+local Open=false
+local function Toggle()
+    Open=not Open
+    if Open then
+        Main.Visible=true; Main.BackgroundTransparency=1; Main.Size=U2(0,260,0,360)
+        -- Open: Show all text
+        for _,v in pairs(Main:GetDescendants()) do 
+            if (v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton")) and v.Name~="Close" and not v:IsDescendantOf(Side) then 
+                v.TextTransparency=0 
+            end 
+        end
+        Tw(Main,{Size=U2(0,280,0,380), BackgroundTransparency=0}, 0.25)
+    else
+        -- Close: Shrink and Fade Background
+        Tw(Main,{Size=U2(0,260,0,360), BackgroundTransparency=1}, 0.15)
+        -- Fade Text (Prevents Ghosts)
+        for _,v in pairs(Main:GetDescendants()) do 
+            if v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton") then 
+                Tw(v,{TextTransparency=1},0.1) 
+            end 
+        end
+        task.wait(0.15)
+        Main.Visible=false
+    end
+end
+
+HeadBtn("X",-35,C3(255,80,80),function() if Open then Toggle() end end)
+HeadBtn("🎮",-70,C3(114,137,218),function() if setclipboard then setclipboard("https://discord.gg/jAJx23cr7"); task.spawn(function() Notify("Discord Link Copied!") end) end end)
+local SOpen=false
+HeadBtn("ℹ",-105,C3(255,200,80),function()
+    SOpen=not SOpen
+    if SOpen then Side.Visible=true; Tw(Side,{Position=U2(0,-125,0,0), BackgroundTransparency=0.05},0.3); for _,v in pairs(Side:GetDescendants()) do if v:IsA("TextLabel") then Tw(v,{TextTransparency=0},0.3) end end
+    else Tw(Side,{Position=U2(0,-20,0,0), BackgroundTransparency=1},0.2); for _,v in pairs(Side:GetDescendants()) do if v:IsA("TextLabel") then Tw(v,{TextTransparency=1},0.2) end end; task.wait(0.2); Side.Visible=false end
+end)
+
+local d,s; OpenBtn.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then d=i.Position; s=OpenBtn.Position; i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then d=nil end end) end end)
+IS.InputChanged:Connect(function(i) if (i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseMovement) and d then local x=i.Position-d; TS:Create(OpenBtn, TweenInfo.new(0.05), {Position=U2(s.X.Scale,s.X.Offset+x.X,s.Y.Scale,s.Y.Offset+x.Y)}):Play() end end)
+OpenBtn.MouseButton1Click:Connect(Toggle)
+
+
+
+
+
+
+
+
+
+-- // NAHSOR FINAL WEBHOOK SYSTEM v2 //
+-- [Fixes: Conditional Reporting | Adaptive Fruit-Only Mode]
+
+task.spawn(function()
+    repeat task.wait(1) until getgenv().Config and getgenv().Stats
+    
+    local LP = game:GetService("Players").LocalPlayer
+    local WebhookURL = "https://discord.com/api/webhooks/1462804070728335370/Z2THKlk_RNm-R144EMLiLe9FTowNStytcgX5Vyprzb5LHTUqT3o72O-SVejkR_mcUure"
+    local FruitsCollected = {}
+
+    local function AddFruitToList(obj)
+        if obj:IsA("Tool") and (obj.Name:lower():find("fruit") or obj:FindFirstChild("Fruit")) then
+            local cleanName = obj.Name:gsub(" [Ff]ruit", ""):gsub("[Ff]ruit", "")
+            local found = false
+            for _, v in pairs(FruitsCollected) do if v == cleanName then found = true end end
+            if not found then table.insert(FruitsCollected, cleanName) end
+        end
+    end
+
+    LP.Backpack.ChildAdded:Connect(AddFruitToList)
+    if LP.Character then LP.Character.ChildAdded:Connect(AddFruitToList) end
+    LP.CharacterAdded:Connect(function(char) char.ChildAdded:Connect(AddFruitToList) end)
+
+    local function MasterReport()
+        local request = http_request or request or HttpPost or syn.request
+        if not request then return end
+
+        local stats = getgenv().Stats
+        local config = getgenv().Config
+        local chestCount = stats.Chests or 0
+        local fruitCount = #FruitsCollected
+
+        -- [RULE 1: SILENCE IF EMPTY]
+        -- If we found NO chests AND NO fruit, do not send a report.
+        if chestCount == 0 and fruitCount == 0 then
+            return 
+        end
+
+        local currentBeli, currentBounty = 0, "0"
+        pcall(function() 
+            currentBeli = LP.Data.Beli.Value 
+            currentBounty = tostring(LP.leaderstats["Bounty/Honor"].Value)
+        end)
+
+        local rewardLabel = "BOUNTY"
+        if LP.Team and LP.Team.Name == "Marines" then rewardLabel = "HONOR " end
+
+        local profit = currentBeli - (stats.StartMoney or currentBeli)
+        local duration = os.time() - (stats.StartTime or os.time())
+        local timeStr = string.format("%02d:%02d:%02d", math.floor(duration/3600), math.floor((duration%3600)/60), duration%60)
+        
+        local displayFruit = "None"
+        local sideColor = 8388863 -- Purple (Default)
+        local blockTheme = "ini"
+
+        if fruitCount > 0 then
+            displayFruit = table.concat(FruitsCollected, ", ")
+            sideColor = 16766720 -- Gold (Fruit Found)
+            blockTheme = "fix"
+        end
+
+        -- [RULE 2: ADAPTIVE UI MODE]
+        local textContent = ""
+        local embedFields = {}
+
+        if config.FarmChests then
+            -- [FULL MODE] (Chests + Money + Fruit)
+            textContent = string.format(
+                "```%s\nNAHSOR CHESTHUB\n------------------------------\n" ..
+                "👤 PLAYER  : %s\n⏱️ TIME    : %s\n📦 CHESTS  : %s\n💵 PROFIT  : $%s\n💰 TOTAL   : $%s\n" ..
+                "🍎 FRUIT   : %s\n------------------------------\n" ..
+                "⚔️ %s   : %s\n```",
+                blockTheme, LP.Name, timeStr, tostring(chestCount), tostring(profit), tostring(currentBeli), displayFruit, rewardLabel, currentBounty
+            )
+            
+            embedFields = {
+                {["name"] = "👤 PLAYER", ["value"] = "```" .. LP.Name .. "```", ["inline"] = false},
+                {["name"] = "⏱️ UPTIME", ["value"] = "```" .. timeStr .. "```", ["inline"] = true},
+                {["name"] = "📦 CHESTS", ["value"] = "```" .. tostring(chestCount) .. "```", ["inline"] = true},
+                {["name"] = "💵 PROFIT", ["value"] = "```$" .. tostring(profit) .. "```", ["inline"] = true},
+                {["name"] = "⚔️ " .. rewardLabel, ["value"] = "```" .. currentBounty .. "```", ["inline"] = true},
+                {["name"] = "🍎 FRUIT FOUND", ["value"] = "```" .. displayFruit .. "```", ["inline"] = false}
+            }
+        else
+            -- [FRUIT ONLY MODE] (Cleaner UI, No Money Stats)
+            textContent = string.format(
+                "```%s\nNAHSOR CHESTHUB\n------------------------------\n" ..
+                "👤 PLAYER  : %s\n⏱️ TIME    : %s\n🍎 FRUIT   : %s\n------------------------------\n" ..
+                "⚔️ %s   : %s\n```",
+                blockTheme, LP.Name, timeStr, displayFruit, rewardLabel, currentBounty
+            )
+
+            embedFields = {
+                {["name"] = "👤 PLAYER", ["value"] = "```" .. LP.Name .. "```", ["inline"] = false},
+                {["name"] = "⏱️ UPTIME", ["value"] = "```" .. timeStr .. "```", ["inline"] = true},
+                {["name"] = "🍎 FRUIT FOUND", ["value"] = "```" .. displayFruit .. "```", ["inline"] = false},
+                {["name"] = "⚔️ " .. rewardLabel, ["value"] = "```" .. currentBounty .. "```", ["inline"] = true}
+            }
+        end
+
+        local embedData = {
+            ["title"] = "💠 NAHSOR CHESTHUB",
+            ["color"] = sideColor,
+            ["fields"] = embedFields,
+            ["timestamp"] = os.date("!*t")
+        }
+
+        pcall(function()
+            request({
+                Url = WebhookURL, Method = "POST", Headers = {["Content-Type"] = "application/json"},
+                Body = game:GetService("HttpService"):JSONEncode({["content"] = textContent})
+            })
+            request({
+                Url = WebhookURL, Method = "POST", Headers = {["Content-Type"] = "application/json"},
+                Body = game:GetService("HttpService"):JSONEncode({["embeds"] = {embedData}})
+            })
+        end)
+    end
+
+    getgenv().SendWebhook = function(msg) end
+
+    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function(State)
+        if State == Enum.TeleportState.InProgress then
+            MasterReport()
+            task.wait(2)
+        end
+    end)
+end)
+
+
+
+
+
+
+ -- // NAHSOR CHESTHUB V14.6 - CHUNK 1 [FINAL FIXED] //
+-- [Fixes: Global Config, Shared Stats, Drag Function, Webhook Order]
+if not game:IsLoaded() then game.Loaded:Wait() end
+repeat task.wait() until game.Players.LocalPlayer
+repeat task.wait() until game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+
+local game = game
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
+
+local task_wait, task_spawn = task.wait, task.spawn
+local math_floor, math_huge = math.floor, math.huge
+local os_time, os_date = os.time, os.date
+
+local LP = Players.LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
+
+-- ==================================================================
+-- [1] CONFIGURATION (MUST BE TOP)
+-- ==================================================================
+
+-- 1. Defaults
+local Config = {
+    WebhookURL = "https://discord.com/api/webhooks/1462804066781364359/Xh5J3nE6FyQ1g3y4abuX6YZYfTzrBS5gW1SxEqytxqybE-jokz0uPlMgfa5NVM8Ej22t",
+    TweenSpeed = 350,       
+    CollectionWait = 0.05, 
+    MaxTime = 120,
+    Disable3DRender = true, 
+    AFKMode = true,
+    FastMode = true,        
+    UltraFastMode = false,
+    StopOnRareItem = true,
+    AdminHop = true, 
+    FarmChests = true,
+    FarmFruit = true,
+    HopDelay = 8,
+    MaxFarmDistance = 4000
+}
+
+-- 2. File Overwrite
+local FileName = "NahsorConfig.json"
+if isfile(FileName) then
+    pcall(function()
+        local FileData = readfile(FileName)
+        local UserSettings = HttpService:JSONDecode(FileData)
+        for Key, Value in pairs(UserSettings) do
+            if Config[Key] ~= nil then Config[Key] = Value end
+        end
+        print("[NahsorConfig] Settings Loaded!")
+    end)
+end
+
+-- 3. Legacy Support
+pcall(function()
+    if getgenv and getgenv().UserConfig then
+        for k, v in pairs(getgenv().UserConfig) do Config[k] = v end
+    end
+end)
+
+-- 4. MAKE GLOBAL (CRITICAL FOR CHUNK 2)
+getgenv().Config = Config 
+
+-- ==================================================================
+-- [2] WEBHOOK SYSTEM
+-- ==================================================================
+
+
+
+-- ==================================================================
+-- [3] VARIABLES & SHARED STATS
+-- ==================================================================
+
+-- [CRITICAL FIX] Stats must be Global so Chunk 2 (UI) can read them
+getgenv().Stats = { Chests = 0, StartMoney = 0, StartTime = os_time() }
+pcall(function() getgenv().Stats.StartMoney = LP.Data.Beli.Value end)
+
+local ChestCache = {}
+local VisitedChests = {} 
+local CollectedPositions = {}
+local CollectedFruits = {} 
+local Farming, IsMoving, Hopping = true, false, false
+local LastMoveTime = os_time()
+local LastPos = Vector3.new(0,0,0)
+local RareItems = {"God's Chalice", "Fist of Darkness"}
+local LastCacheRefresh = 0
+
+
+
+-- [4] NAHSOR TEAM SELECTOR (Direct File Read)
+task.spawn(function()
+    local RS = game:GetService("ReplicatedStorage")
+    local LP = game:GetService("Players").LocalPlayer
+    local Http = game:GetService("HttpService")
+
+    -- Wait for game to load
+    repeat task.wait() until RS:FindFirstChild("Remotes") and RS.Remotes:FindFirstChild("CommF_")
+
+    -- [CRITICAL FIX] READ THE FILE DIRECTLY
+    -- This ignores variables and checks exactly what is saved on your PC/Phone.
+    local TargetTeam = "Pirates" -- Default fallback
+    
+    if isfile("NahsorConfig.json") then
+        pcall(function()
+            local FileData = Http:JSONDecode(readfile("NahsorConfig.json"))
+            if FileData.Team then
+                TargetTeam = FileData.Team
+            end
+        end)
+    end
+
+    -- Join Loop
+    local attempts = 0
+    while attempts < 60 do 
+        -- Stop if we are already on the correct team
+        if LP.Team and LP.Team.Name == TargetTeam then 
+            break 
+        end
+        
+        -- Force Join
+        pcall(function() 
+            RS.Remotes.CommF_:InvokeServer("SetTeam", TargetTeam) 
+        end)
+        
+        attempts = attempts + 1
+        task.wait(1)
+    end
+end)
+
+
+
+-- [5] ANTI-AFK
+LP.Idled:Connect(function()
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0,0))
+    end)
+end)
+
+-- [CRITICAL FIX] MakeDraggable must be Global for Chunk 2
+getgenv().MakeDraggable = function(gui)
+    local dragging, dragInput, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = gui.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    gui.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end end)
+    UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
+end
+
+-- [6] FAST MODE
+local function ApplyFastMode()
+    if Config.UltraFastMode then return end
+    if not Config.FastMode then return end
+    local L = game:GetService("Lighting")
+    L.GlobalShadows, L.FogEnd = false, 9e9
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    local function Fastify(v)
+        if v:IsA("BasePart") then pcall(function() v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false end) end
+        if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 end
+    end
+    for _,v in pairs(workspace:GetDescendants()) do Fastify(v) end
+    workspace.DescendantAdded:Connect(Fastify)
+end
+
+-- [7] ULTRA FAST MODE
+local function ApplyUltraFastMode()
+    if not Config.UltraFastMode then return end
+    pcall(function()
+        local L = game:GetService("Lighting")
+        L.GlobalShadows = false
+        L.FogEnd = 9e9
+        L.Brightness = 0.4
+        L.Ambient = Color3.new(0,0,0)
+        L.OutdoorAmbient = Color3.new(0,0,0)
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        for _,v in pairs(L:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end end
+        local function Clear(v)
+            if v:IsA("BasePart") then v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false
+            elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") then v:Destroy()
+            elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then v:Destroy() end
+        end
+        for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
+        workspace.DescendantAdded:Connect(Clear)
+    end)
+end
+
+task_spawn(function()
+    task_wait(1)
+    if Config.UltraFastMode then ApplyUltraFastMode()
+    elseif Config.FastMode then ApplyFastMode() end
+end)   
+
+
+
+
+
+
+
+
+
+
+-- // NAHSOR CHESTHUB V14.6 - CHUNK 2 [TESTED & VERIFIED LOGIC] //
+-- [System: Robust Webhook (From Test Script) | Crash-Proof UI]
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local GuiService = game:GetService("GuiService")
+
+-- ==================================================================
+-- [1] ROBUST WEBHOOK SYSTEM (MATCHING THE WORKING TEST SCRIPT)
+-- ==================================================================
+
+
+
+
+-- ==================================================================
+-- [2] UI CONSTRUCTION (CRASH PROOF)
+-- ==================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ChestHub_Core"
+ScreenGui.IgnoreGuiInset = true 
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling 
+pcall(function() if LP.PlayerGui:FindFirstChild("ChestHub_Core") then LP.PlayerGui.ChestHub_Core:Destroy() end ScreenGui.Parent = LP.PlayerGui end)
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- Black
+MainFrame.Position = UDim2.new(0.5, 0, 0.4, 0)
+MainFrame.Size = UDim2.new(0, 180, 0, 0)
+MainFrame.AutomaticSize = Enum.AutomaticSize.Y
+MainFrame.ZIndex = 10 
+if getgenv().MakeDraggable then getgenv().MakeDraggable(MainFrame) end
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+
+local Stroke = Instance.new("UIStroke", MainFrame)
+Stroke.Color = Color3.fromRGB(40, 225, 80) -- Green Border
+Stroke.Thickness = 1.5
+
+local UIList = Instance.new("UIListLayout", MainFrame)
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+UIList.Padding = UDim.new(0, 4)
+local Padding = Instance.new("UIPadding", MainFrame)
+Padding.PaddingTop = UDim.new(0, 10); Padding.PaddingLeft = UDim.new(0, 10); Padding.PaddingRight = UDim.new(0, 10); Padding.PaddingBottom = UDim.new(0, 10)
+
+local function Label(text, color, order)
+    local l = Instance.new("TextLabel", MainFrame)
+    l.Text, l.TextColor3, l.LayoutOrder = text, color or Color3.fromRGB(220, 220, 220), order
+    l.BackgroundTransparency, l.Size, l.Font, l.TextSize = 1, UDim2.new(1,0,0,16), Enum.Font.GothamBold, 12
+    l.TextXAlignment, l.ZIndex = Enum.TextXAlignment.Left, 11
+    return l
+end
+
+-- Define Labels
+TitleLbl = Label("NAHSOR CHESTHUB", Color3.fromRGB(255, 60, 60), 0)
+ChestsLbl = Label("Chests: 0", Color3.fromRGB(255, 170, 0), 1)
+FruitLbl = Label("Fruit: None", Color3.fromRGB(255, 85, 255), 2)
+TimerLbl = Label("Time: 00:00:00", Color3.fromRGB(180, 180, 180), 3)
+EarnedLbl = Label("Money: $0", Color3.fromRGB(85, 255, 127), 4)
+StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
+
+
+
+-- //////////////////////////////////////////////////////////////////
+-- [SECTION 3] MAIN FARMING LOGIC (Ghost Chest & Blacklist Fix)
+-- //////////////////////////////////////////////////////////////////
+
+
+
+-- // NAHSOR FINAL SMART HOP (Immediate Blacklist Fix) //
+local ChestCache, VisitedChests, CollectedPositions = {}, {}, {}
+local Hopping = false
+local RareItems = {"God's Chalice", "Fist of Darkness"}
+local HistoryFile = "NotSameServers.json"
+
+-- [CRITICAL FIX] INSTANT BLACKLIST FUNCTION
+-- We run this the moment the script loads to "burn" the current server immediately.
+local function UpdateServerHistory()
+    local History = {}
+    local CurrentTime = os.time()
+    
+    -- 1. Read existing file
+    pcall(function()
+        if isfile(HistoryFile) then
+            local fileData = HttpService:JSONDecode(readfile(HistoryFile))
+            -- 30 Minute Session Reset Logic
+            if fileData.Timestamp and (CurrentTime - fileData.Timestamp) < 1800 then
+                History = fileData.IDs or {}
+            else
+                print("♻️ Session Expired: Clearing Server History.")
+            end
+        end
+    end)
+
+    -- 2. Add CURRENT server if missing
+    if not table.find(History, game.JobId) then
+        table.insert(History, game.JobId)
+        pcall(function() 
+            writefile(HistoryFile, HttpService:JSONEncode({Timestamp = CurrentTime, IDs = History})) 
+        end)
+        print("🔒 Current Server Blacklisted Immediately.")
+    end
+    
+    return History
+end
+
+-- [IMPORTANT] RUN THIS INSTANTLY!
+-- This ensures the server is blocked even if you crash 10 seconds later.
+UpdateServerHistory()
+
+-- [1] RARE ITEM CHECK
+local function CheckRareItems()
+    if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
+    for _, item in pairs(RareItems) do
+        if LP.Backpack:FindFirstChild(item) or LP.Character:FindFirstChild(item) then return true end
+    end
+    return false
+end
+
+-- [2] BLIND HOP (Fallback)
+local function BlindHop()
+    StatusLbl.Text = "API Failed. Blind Hopping..."
+    StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+    
+    if getgenv().Config.Disable3DRender then
+        pcall(function() RunService:Set3dRenderingEnabled(false) end)
+    end
+    TeleportService:Teleport(game.PlaceId, LP)
+end
+
+-- [3] SMART HOP LOGIC
+local function ServerHop(Reason)
+    if Hopping then return end
+    
+    SendWebhook(nil)
+    
+    StatusLbl.Text = "Deep Cleaning RAM..."
+    table.clear(ChestCache)
+    table.clear(VisitedChests)
+    table.clear(CollectedPositions)
+    
+    for i = 1, 3 do task.wait(0.1) local junk = gcinfo() end
+
+    if getgenv().Config.StopOnRareItem and CheckRareItems() then
+        StatusLbl.Text = "RARE ITEM FOUND! STOPPED."
+        SendWebhook("God's Chalice / Fist")
+        Hopping = true
+        return
+    end
+
+    Hopping = true
+    StatusLbl.Text = "Cooling Down (3s)..."
+    task.wait(3) 
+
+    StatusLbl.Text = "Searching Server..."
+    local PlaceID = game.PlaceId
+    
+    -- Refresh history one last time before scanning
+    local AllIDs = UpdateServerHistory()
+    
+    local function Scan()
+        local foundAnything = ""
+        local url = 'https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'
+        local apiErrors = 0 
+        
+        while true do
+            if apiErrors >= 5 then
+                StatusLbl.Text = "API Dead. Force Hopping..."
+                task.wait(0.5)
+                BlindHop() 
+                break 
+            end
+
+            local cursorUrl = url .. (foundAnything ~= "" and '&cursor=' .. foundAnything or "")
+            local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
+            
+            if success and result and result.data then
+                apiErrors = 0 
+                for _, v in pairs(result.data) do
+                    local ID = tostring(v.id)
+                    -- Check: Not Full AND Not Current AND Not in History
+                    if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
+                        local IsNew = true
+                        for _, visitedID in pairs(AllIDs) do 
+                            if ID == tostring(visitedID) then 
+                                IsNew = false 
+                                break 
+                            end 
+                        end
+                        
+                        if IsNew then
+                            -- Pre-Block the target server so we don't pick it again
+                            table.insert(AllIDs, ID)
+                            pcall(function() 
+                                writefile(HistoryFile, HttpService:JSONEncode({Timestamp = os.time(), IDs = AllIDs})) 
+                            end)
+                            
+                            StatusLbl.Text = "Joining " .. v.playing .. "/" .. v.maxPlayers .. "..."
+                            
+                            if getgenv().Config.Disable3DRender then
+                                pcall(function() RunService:Set3dRenderingEnabled(false) end)
+                            end
+
+                            TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
+                            task.wait(20)
+                            RunService:Set3dRenderingEnabled(true)
+                        end
+                    end
+                end
+                if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else foundAnything = "" end
+            else
+                apiErrors = apiErrors + 1
+                StatusLbl.Text = "API Busy ("..apiErrors.."/5)..."
+                task.wait(1.5)
+            end
+        end
+    end
+    task.spawn(Scan)
+end
+
+
+
+-- ==================================================================
+-- [4] EVENTS & START
+-- ==================================================================
+Players.PlayerAdded:Connect(function(v)
+    if getgenv().Config.AdminHop and v:IsInGroup(4372130) and v:GetRankInGroup(4372130) > 20 then
+        ServerHop("Admin Detected")
+    end
+end)
+
+TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
+    if player == LP then 
+        Hopping = false 
+        RunService:Set3dRenderingEnabled(true)
+        BlindHop()
+    end
+end)
+
+task.spawn(function()
+    CoreGui.RobloxPromptGui.DescendantAdded:Connect(function(child)
+        if child.Name == "ErrorTitle" or child.Name == "ErrorPrompt" then Hopping = false; ServerHop("Error Prompt") end
+    end)
+    GuiService.ErrorMessageChanged:Connect(function() Hopping = false; ServerHop("Gui Error") end)
+end)
+
+-- [START TRIGGER] 
+-- Uses the proven logic with a safe 2-second buffer
+task.spawn(function()
+    task.wait(2) 
+    SendWebhook("Start")
+end)
+
+
+
+
+                            
+        
+-- // NAHSOR CHESTHUB V14.9 - CHUNK 3 //
+-- [FIX: Fruit Name UI + SAVER Button + Syntax Repairs]
+
+task_spawn(function()
+    task_wait(2) 
+    if LP.Data and LP.Data:FindFirstChild("Beli") then
+        LP.Data.Beli.Changed:Connect(function() EarnedLbl.Text = "Money: $"..(LP.Data.Beli.Value - Stats.StartMoney) end)
+    end
+end)
+
+local Divider = Instance.new("Frame", MainFrame)
+Divider.BackgroundColor3, Divider.BorderSizePixel, Divider.Size, Divider.LayoutOrder, Divider.ZIndex = Color3.fromRGB(60, 60, 60), 0, UDim2.new(1, 0, 0, 1), 6, 11
+local BtnRow = Instance.new("Frame", MainFrame)
+BtnRow.BackgroundTransparency, BtnRow.Size, BtnRow.LayoutOrder, BtnRow.ZIndex = 1, UDim2.new(1, 0, 0, 24), 7, 11
+local ToggleBtn = Instance.new("TextButton", BtnRow)
+ToggleBtn.Text, ToggleBtn.BackgroundColor3, ToggleBtn.Size, ToggleBtn.ZIndex = "ON", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), 12
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
+local HopBtn = Instance.new("TextButton", BtnRow)
+HopBtn.Text, HopBtn.BackgroundColor3, HopBtn.Size, HopBtn.Position, HopBtn.ZIndex = "HOP", Color3.fromRGB(40, 100, 220), UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0), 12
+Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 6)
+
+local ExtraRow = Instance.new("Frame", MainFrame)
+ExtraRow.BackgroundTransparency, ExtraRow.Size, ExtraRow.LayoutOrder, ExtraRow.ZIndex = 1, UDim2.new(1, 0, 0, 24), 8, 11
+
+local AFKBtn = Instance.new("TextButton", ExtraRow)
+AFKBtn.Text, AFKBtn.BackgroundColor3, AFKBtn.Size, AFKBtn.ZIndex = "AFK", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), 12
+Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
+
+local RenderBtn = Instance.new("TextButton", ExtraRow)
+RenderBtn.Size, RenderBtn.Position, RenderBtn.ZIndex = UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0), 12
+Instance.new("UICorner", RenderBtn).CornerRadius = UDim.new(0, 6)
+
+local BlurFrame = Instance.new("Frame", ScreenGui)
+BlurFrame.Name, BlurFrame.Size, BlurFrame.BackgroundColor3, BlurFrame.Visible = "AFKOverlay", UDim2.new(1,0,1,0), Color3.fromRGB(0,0,0), Config.AFKMode
+
+local function StoreFruit(fruit)
+    if not fruit or not fruit:FindFirstChild("Handle") then return end
+    
+    -- [UPDATED LOGIC: Capture Name Immediately]
+    local fruitName = fruit.Name
+    if fruit:GetAttribute("OriginalName") then fruitName = fruit:GetAttribute("OriginalName") end
+    
+    -- Debug Print
+    print("[NahsorDebug] Detected Fruit: " .. tostring(fruitName))
+    
+    -- Update UI List Instantly
+    table.insert(CollectedFruits, fruitName)
+    if #CollectedFruits > 0 then
+        FruitLbl.Text = "Fruit: " .. table.concat(CollectedFruits, ", ")
+        FruitLbl.TextColor3 = Color3.fromRGB(0, 255, 255) -- Cyan Color
+    end
+    
+    local OldCFrame = LP.Character.HumanoidRootPart.CFrame
+    LP.Character.HumanoidRootPart.CFrame = fruit.Handle.CFrame
+    task_wait(0.2)
+    firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 0)
+    firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 1)
+    
+    local args = { [1] = "StoreFruit", [2] = fruit:GetAttribute("OriginalName") or fruit.Name, [3] = fruit }
+    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args)) end)
+    
+    task_wait(0.2)
+    LP.Character.HumanoidRootPart.CFrame = OldCFrame
+end
+
+local function UpdateCache()
+    if os_time() - LastCacheRefresh < 1.5 then return end
+    LastCacheRefresh = os_time()
+    table.clear(ChestCache)
+    for _, v in pairs(workspace:GetDescendants()) do
+        if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then table.insert(ChestCache, v) end
+    end
+end
+
+local function CheckStuck(root)
+    if (root.Position - LastPos).Magnitude < 2 then
+        if os_time() - LastMoveTime > 12 then StatusLbl.Text = "Stuck! Hopping..." ServerHop() end
+    else LastMoveTime = os_time() LastPos = root.Position end
+end
+
+local function MainFarm()
+    if not Farming or Hopping then return end
+    local char = LP.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    UpdateCache()
+    
+    -- [1] FRUIT CHECK
+    if Config.FarmFruit then
+        for _, v in pairs(Workspace:GetChildren()) do
+            if v:IsA("Tool") and string.find(v.Name, "Fruit") then 
+                StatusLbl.Text = "Snipping Fruit: " .. v.Name
+                StatusLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
+                StoreFruit(v) 
+            end
+        end
+    end
+
+    local target, minDist = nil, math_huge
+
+    -- [2] CHEST CHECK
+    if Config.FarmChests then
+        for _, v in pairs(ChestCache) do
+            if v and v.Parent then
+                local dist = (v.Position - root.Position).Magnitude
+                if dist < Config.MaxFarmDistance and not VisitedChests[v] then
+                    local isDup = false
+                    for _, pos in pairs(CollectedPositions) do if (v.Position - pos).Magnitude < 5 then isDup = true break end end
+                    if not isDup and dist < minDist then target = v minDist = dist end
+                end
+            end
+        end
+    end
+
+    -- [3] EXECUTE ACTION
+    if target then
+        IsMoving = true
+        StatusLbl.Text = "Chest: " .. math_floor(minDist) .. "m"
+        StatusLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+        tween:Play()
+        while tween.PlaybackState == Enum.PlaybackState.Playing do 
+            if not Farming or Hopping then tween:Cancel() return end 
+            task_wait(0.05) 
+        end
+        if target.Parent and (target.Position - root.Position).Magnitude < 15 then
+            firetouchinterest(root, target, 0)
+            firetouchinterest(root, target, 1)
+            pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
+            VisitedChests[target] = true
+            table.insert(CollectedPositions, target.Position)
+            Stats.Chests = Stats.Chests + 1
+            ChestsLbl.Text = "Chests: "..Stats.Chests
+            task_wait(Config.CollectionWait)
+        end
+        IsMoving = false
+    else
+        StatusLbl.Text = "Finished! Hopping..."
+        local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
+        if Stats.Chests > 0 or fruits then SendWebhook(fruits) end
+        local waitTime = Config.FarmChests and 3 or 1
+        task_wait(waitTime) 
+        ServerHop()
+    end
+end
+
+ToggleBtn.MouseButton1Click:Connect(function() Farming = not Farming ToggleBtn.Text = Farming and "ON" or "OFF" ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
+HopBtn.MouseButton1Click:Connect(function() Hopping = false ServerHop() end)
+
+-- [AFK Button Logic]
+AFKBtn.MouseButton1Click:Connect(function() 
+    local IsAFK = not BlurFrame.Visible 
+    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) 
+    BlurFrame.Visible = IsAFK 
+end)
+
+-- [UPDATED: SAVER BUTTON LOGIC]
+RenderBtn.MouseButton1Click:Connect(function() 
+    Config.Disable3DRender = not Config.Disable3DRender
+    local State = Config.Disable3DRender
+    
+    -- SAVER: ON (Green) = Feature Active (Black Screen)
+    -- SAVER: OFF (Red) = Feature Inactive (Visible Screen)
+    RenderBtn.Text = State and "3d Rend: ON" or "3d Rend: OFF"
+    RenderBtn.BackgroundColor3 = State and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
+    
+    pcall(function() RunService:Set3dRenderingEnabled(not State) end)
+end)
+
+-- [INIT: Check Initial State]
+if Config.Disable3DRender then
+    RenderBtn.Text = "3d Rend: ON"
+    RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
+    pcall(function() RunService:Set3dRenderingEnabled(false) end)
+else
+    RenderBtn.Text = "3d Rend: OFF"
+    RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    pcall(function() RunService:Set3dRenderingEnabled(true) end)
+end
+
+task_spawn(function() while true do if Farming and not Hopping then pcall(MainFarm) end task_wait(0.1) end end)
+task_spawn(function() while true do TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor((os_time()-Stats.StartTime)/3600), math_floor(((os_time()-Stats.StartTime)%3600)/60), (os_time()-Stats.StartTime)%60) task_wait(1) end end)
+
+task.spawn(function()
+    local StartClock = os.time()
+    while task.wait(5) do
+        if Hopping then continue end 
+        if not Farming or (Config.StopOnRareItem and CheckRareItems()) then continue end
+        if Config.MaxTime and (os.time() - StartClock) >= Config.MaxTime then
+            Farming, Hopping = false, true
+            
+            pcall(function() RunService:Set3dRenderingEnabled(false) if LP.Character:FindFirstChild("HumanoidRootPart") then LP.Character.HumanoidRootPart.Anchored = true end end)
+            local s, r = pcall(function() return HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. game.PlaceId .. '/servers/Public?sortOrder=Desc&limit=100')) end)
+            if s and r and r.data then
+                for _, v in pairs(r.data) do if v.playing < (v.maxPlayers - 2) and tostring(v.id) ~= game.JobId then TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, LP) task.wait(10) end end
+            end
+            TeleportService:Teleport(game.PlaceId, LP)
+            task.wait(10)
+        end
+    end
+end)
+
+task.spawn(function()
+    local Stats = game:GetService("Stats")
+    local Network = Stats.Network.ServerStatsItem["Data Ping"]
+    local FailCount = 0
+    while task.wait(5) do
+        local ping = math.floor(Network:GetValue())
+        if ping > 2000 then
+            -- [FIXED SYNTAX ERROR HERE]
+            FailCount = FailCount + 1
+            StatusLbl.Text = "LAG FREEZE ("..FailCount.."/3)"
+        else
+            FailCount = 0
+        end
+        if FailCount >= 3 then
+            StatusLbl.Text = "FORCE HOPPING..."
+            StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
+            pcall(function() RunService:Set3dRenderingEnabled(false) end)
+            TeleportService:Teleport(game.PlaceId, LP)
+            while true do task.wait(1) end
+        end
+    end
+end)
+
+
