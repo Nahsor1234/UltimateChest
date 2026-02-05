@@ -581,6 +581,9 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 
 
 
+
+
+
 -- //////////////////////////////////////////////////////////////////
 -- [SECTION 3] MAIN FARMING LOGIC (Restored V2 Counter & Fixed Toggle)
 -- //////////////////////////////////////////////////////////////////
@@ -839,7 +842,6 @@ task.spawn(function()
         task.wait(0.1) 
     end 
 end)
-
  
                             
     
