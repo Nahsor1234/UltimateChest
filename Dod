@@ -478,34 +478,137 @@ local function ApplyFastMode()
     workspace.DescendantAdded:Connect(Fastify)
 end
 
--- [7] ULTRA FAST MODE
+
+-- [7] ULTRA FAST MODE (REPLACED WITH TITAN MAP DELETER)
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
+    
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LP = Players.LocalPlayer
+    local Workspace = game:GetService("Workspace")
+    local Lighting = game:GetService("Lighting")
+
+    -- // CONFIG //
+    local SEA_LEVEL = 12       -- Height of the ice platform (Safety)
+    local PLATFORM_SIZE = 18   -- Size of the ice disc
+
+    print("⚡ ULTRA FAST MODE: EXECUTING MAP DELETION...")
+
+    -- [PART 1] LOWER GRAPHICS (From Original Script)
     pcall(function()
-        local L = game:GetService("Lighting")
-        L.GlobalShadows = false
-        L.FogEnd = 9e9
-        L.Brightness = 0.4
-        L.Ambient = Color3.new(0,0,0)
-        L.OutdoorAmbient = Color3.new(0,0,0)
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        Lighting.Brightness = 0.4
         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-        for _,v in pairs(L:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end end
-        local function Clear(v)
-            if v:IsA("BasePart") then v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false
-            elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1
-            elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") then v:Destroy()
-            elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then v:Destroy() end
+        for _,v in pairs(Lighting:GetChildren()) do 
+            if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end 
         end
-        for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
-        workspace.DescendantAdded:Connect(Clear)
+        workspace.Terrain.WaterWaveSize = 0 -- Flatten water for FPS
+        workspace.Terrain.WaterReflectance = 0
     end)
+
+    -- [PART 2] FROST WALK (Ice Platform Logic)
+    local function StartFrostWalk()
+        -- Cleanup old if exists
+        if Workspace:FindFirstChild("FrostWalkPlatform") then Workspace.FrostWalkPlatform:Destroy() end
+
+        local IcePart = Instance.new("Part")
+        IcePart.Name = "FrostWalkPlatform"
+        IcePart.Parent = Workspace
+        IcePart.Anchored = true
+        IcePart.CanCollide = true
+        IcePart.Shape = Enum.PartType.Cylinder 
+        IcePart.Size = Vector3.new(1, PLATFORM_SIZE, PLATFORM_SIZE) 
+        IcePart.Color = Color3.fromRGB(130, 240, 255) 
+        IcePart.Material = Enum.Material.Glass 
+        IcePart.Transparency = 0.4
+        IcePart.CastShadow = false
+        
+        -- Loop
+        RunService.RenderStepped:Connect(function()
+            if not IcePart or not IcePart.Parent then return end
+            
+            local char = LP.Character
+            if not char then return end
+            
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            
+            -- Move Ice (Lock Y at SEA_LEVEL)
+            IcePart.CFrame = CFrame.new(root.Position.X, SEA_LEVEL, root.Position.Z) * CFrame.Angles(0, 0, math.pi/2)
+            
+            -- Anti-Void Safety Bounce
+            if root.Position.Y < (SEA_LEVEL - 10) then
+                root.CFrame = CFrame.new(root.Position.X, SEA_LEVEL + 5, root.Position.Z)
+                root.Velocity = Vector3.zero
+            end
+        end)
+    end
+    task.spawn(StartFrostWalk)
+
+    -- [PART 3] RESCUE CHESTS & FRUITS (Scan & Save)
+    local savedObjects = {} 
+    
+    for _, v in pairs(Workspace:GetDescendants()) do
+        pcall(function()
+            local n = v.Name
+            if n:find("Chest") or n:find("Box") or n:find("Fruit") then
+                if v.Parent then
+                    local obj = v
+                    -- If it's a part inside a Chest Model, grab the Model instead
+                    if v.Parent:IsA("Model") and (v.Parent.Name:find("Chest") or v.Parent.Name:find("Fruit")) then
+                        obj = v.Parent
+                    end
+                    
+                    -- Move to Workspace Safe Zone
+                    if obj.Parent ~= Workspace then
+                        obj.Parent = Workspace
+                        if obj:IsA("BasePart") then obj.Anchored = true end
+                        if obj:IsA("Model") then 
+                            local pp = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                            if pp then pp.Anchored = true end
+                        end
+                    end
+                    savedObjects[obj] = true
+                end
+            end
+        end)
+    end
+
+    -- [PART 4] NUKE MAP (Triple Safety Check)
+    for _, v in pairs(Workspace:GetChildren()) do
+        pcall(function()
+            local n = v.Name
+            
+            -- TRIPLE CHECK: Is this the player?
+            local isPlayer = false
+            if v == LP.Character then isPlayer = true end
+            if n == LP.Name then isPlayer = true end
+            if Players:GetPlayerFromCharacter(v) then isPlayer = true end
+
+            -- DELETE LIST (Everything except Safe Items)
+            if not isPlayer and 
+               n ~= "Camera" and 
+               n ~= "Terrain" and 
+               n ~= "FrostWalkPlatform" and 
+               not savedObjects[v] and 
+               not (n:find("Chest") or n:find("Fruit")) then
+               
+                v:Destroy()
+            end
+        end)
+    end
+    
+    print("⚡ ULTRA FAST MODE: MAP DELETED & OPTIMIZED")
 end
 
-task_spawn(function()
-    task_wait(1)
+-- Your Trigger Function
+task.spawn(function()
+    task.wait(1)
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
-end)   
+        end)
 
 
 
