@@ -580,8 +580,12 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 
 
 
+
+
+
+
 -- //////////////////////////////////////////////////////////////////
--- [SECTION 3] MAIN FARMING LOGIC (Fixed Ghost Chests & Hopping)
+-- [SECTION 3] MAIN FARMING LOGIC (Final Fix: Ghost & Retry System)
 -- //////////////////////////////////////////////////////////////////
 
 local ChestCache, VisitedChests, CollectedPositions = {}, {}, {}
@@ -589,47 +593,36 @@ local Hopping = false
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local HistoryFile = "NotSameServers.json"
 local LastCacheRefresh = 0
+local NoChestCount = 0 -- [NEW] Prevents instant hopping
 
--- [FIX 1: INSTANT BLACKLIST & HISTORY MANAGER]
--- We run this to ensure the current server is NEVER joined again.
+-- [HISTORY & BLACKLIST SYSTEM]
 local function UpdateServerHistory()
     local History = {}
     local CurrentTime = os.time()
     local CurrentJob = game.JobId
     
-    -- 1. Read existing file
     pcall(function()
         if isfile(HistoryFile) then
             local fileData = HttpService:JSONDecode(readfile(HistoryFile))
-            -- 30 Minute Session Reset Logic
             if fileData.Timestamp and (CurrentTime - fileData.Timestamp) < 1800 then
                 History = fileData.IDs or {}
             end
         end
     end)
 
-    -- 2. Add CURRENT server if missing (CRITICAL FIX)
     local foundCurrent = false
-    for _, id in pairs(History) do
-        if id == CurrentJob then foundCurrent = true break end
-    end
+    for _, id in pairs(History) do if id == CurrentJob then foundCurrent = true break end end
 
     if not foundCurrent then
         table.insert(History, CurrentJob)
-        -- Save immediately so if we crash, we remember this server
-        pcall(function() 
-            writefile(HistoryFile, HttpService:JSONEncode({Timestamp = CurrentTime, IDs = History})) 
-        end)
-        print("🔒 Current Server Blacklisted.")
+        pcall(function() writefile(HistoryFile, HttpService:JSONEncode({Timestamp = CurrentTime, IDs = History})) end)
+        print("🔒 Server Blacklisted.")
     end
-    
     return History
 end
+UpdateServerHistory() -- Run immediately
 
--- [RUN IMMEDIATELY]
-UpdateServerHistory()
-
--- [2] RARE ITEM CHECK
+-- [RARE ITEM CHECK]
 local function CheckRareItems()
     if not LP or not LP.Character or not LP:FindFirstChild("Backpack") then return false end
     for _, item in pairs(RareItems) do
@@ -638,38 +631,29 @@ local function CheckRareItems()
     return false
 end
 
--- [3] BLIND HOP (Fallback)
+-- [BLIND HOP]
 local function BlindHop()
-    if StatusLbl then 
-        StatusLbl.Text = "API Failed. Blind Hopping..."
-        StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
-    end
-    
-    if getgenv().Config.Disable3DRender then
-        pcall(function() RunService:Set3dRenderingEnabled(false) end)
-    end
+    if StatusLbl then StatusLbl.Text = "API Failed. Blind Hopping..." StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0) end
+    if getgenv().Config.Disable3DRender then pcall(function() RunService:Set3dRenderingEnabled(false) end) end
     TeleportService:Teleport(game.PlaceId, LP)
 end
 
--- [4] SMART SERVER HOP
+-- [SMART HOP]
 local function ServerHop(Reason)
     if Hopping then return end
     Hopping = true
-    
     if getgenv().SendWebhook then SendWebhook(nil) end
-    
     if StatusLbl then StatusLbl.Text = "Deep Cleaning RAM..." end
+    
     table.clear(ChestCache)
     table.clear(VisitedChests)
     table.clear(CollectedPositions)
-    
-    -- Deep Clean
     for i = 1, 3 do task.wait(0.1) local junk = gcinfo() end
 
     if getgenv().Config.StopOnRareItem and CheckRareItems() then
         if StatusLbl then StatusLbl.Text = "RARE ITEM FOUND! STOPPED." end
         if getgenv().SendWebhook then SendWebhook("God's Chalice / Fist") end
-        return -- Do not hop
+        return 
     end
 
     if StatusLbl then StatusLbl.Text = "Cooling Down (3s)..." end
@@ -677,8 +661,6 @@ local function ServerHop(Reason)
 
     if StatusLbl then StatusLbl.Text = "Searching Server..." end
     local PlaceID = game.PlaceId
-    
-    -- Get Fresh Blacklist
     local AllIDs = UpdateServerHistory()
     
     local function Scan()
@@ -687,13 +669,7 @@ local function ServerHop(Reason)
         local apiErrors = 0 
         
         while true do
-            if apiErrors >= 5 then
-                if StatusLbl then StatusLbl.Text = "API Dead. Force Hopping..." end
-                task.wait(0.5)
-                BlindHop() 
-                break 
-            end
-
+            if apiErrors >= 5 then BlindHop() break end
             local cursorUrl = url .. (foundAnything ~= "" and '&cursor=' .. foundAnything or "")
             local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(cursorUrl)) end)
             
@@ -701,54 +677,24 @@ local function ServerHop(Reason)
                 apiErrors = 0 
                 for _, v in pairs(result.data) do
                     local ID = tostring(v.id)
-                    
-                    -- [FIX 2: ROBUST FILTERING]
-                    -- 1. Server must have space (MaxPlayers - 2)
-                    -- 2. Server ID must NOT be current JobId (Redundant check)
                     if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
                         local IsNew = true
-                        
-                        -- Check against History File
-                        for _, visitedID in pairs(AllIDs) do 
-                            if ID == tostring(visitedID) then 
-                                IsNew = false 
-                                break 
-                            end 
-                        end
+                        for _, visitedID in pairs(AllIDs) do if ID == tostring(visitedID) then IsNew = false break end end
                         
                         if IsNew then
-                            -- Block this target immediately so we don't pick it again if we fail
                             table.insert(AllIDs, ID)
-                            pcall(function() 
-                                writefile(HistoryFile, HttpService:JSONEncode({Timestamp = os.time(), IDs = AllIDs})) 
-                            end)
-                            
+                            pcall(function() writefile(HistoryFile, HttpService:JSONEncode({Timestamp = os.time(), IDs = AllIDs})) end)
                             if StatusLbl then StatusLbl.Text = "Joining " .. v.playing .. "/" .. v.maxPlayers .. "..." end
-                            
-                            if getgenv().Config.Disable3DRender then
-                                pcall(function() RunService:Set3dRenderingEnabled(false) end)
-                            end
-
+                            if getgenv().Config.Disable3DRender then pcall(function() RunService:Set3dRenderingEnabled(false) end) end
                             TeleportService:TeleportToPlaceInstance(PlaceID, ID, LP)
-                            task.wait(20) -- Wait for teleport to happen
-                            -- If we are still here after 20s, teleport failed. Re-enable render and loop continues.
+                            task.wait(20)
                             RunService:Set3dRenderingEnabled(true)
                         end
                     end
                 end
-                
-                -- Pagination Logic
-                if result.nextPageCursor and result.nextPageCursor ~= "null" then 
-                    foundAnything = result.nextPageCursor 
-                else 
-                    -- End of list
-                    if StatusLbl then StatusLbl.Text = "End of Servers. Blind Hop..." end
-                    BlindHop()
-                    break
-                end
+                if result.nextPageCursor and result.nextPageCursor ~= "null" then foundAnything = result.nextPageCursor else BlindHop() break end
             else
                 apiErrors = apiErrors + 1
-                if StatusLbl then StatusLbl.Text = "API Busy ("..apiErrors.."/5)..." end
                 task.wait(1.5)
             end
         end
@@ -756,40 +702,41 @@ local function ServerHop(Reason)
     task.spawn(Scan)
 end
 
--- [5] CACHE UPDATER (GHOST CHEST FIX PART 1)
+-- [CACHE UPDATER]
 local function UpdateCache()
     if os.time() - LastCacheRefresh < 1.5 then return end
     LastCacheRefresh = os.time()
     table.clear(ChestCache)
     
     for _, v in pairs(workspace:GetDescendants()) do
-        -- [FIX 3: TRANSPARENCY CHECK]
-        -- Only add chest if it is NOT transparent (Transparency < 0.9)
-        if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("BasePart") then
-            if v.Transparency < 0.9 then
-                table.insert(ChestCache, v) 
+        if v.Name:find("Chest") or v.Name:find("Box") then
+            -- [FIXED] No longer checks transparency here to prevent ignoring Invisible Hitboxes
+            if v:IsA("BasePart") then
+                table.insert(ChestCache, v)
+            elseif v:IsA("Model") then
+                -- For models, try to find a part to target
+                local part = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
+                if part then table.insert(ChestCache, part) end
             end
         end
     end
 end
 
--- [6] MAIN FARM LOOP
+-- [MAIN FARM LOOP]
 local function MainFarm()
     if not getgenv().Config.FarmChests or Hopping then return end
     if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then return end
     
     local root = LP.Character.HumanoidRootPart
     UpdateCache()
-    
-    -- [FRUIT SNIPER LOGIC REMOVED FOR BREVITY, ASSUMED IN CHUNK 2]
 
     local target, minDist = nil, math.huge
 
     for _, v in pairs(ChestCache) do
-        if v and v.Parent and v.Transparency < 0.9 then -- Check transparency again
+        if v and v.Parent then
             local dist = (v.Position - root.Position).Magnitude
+            -- Only farm if close enough
             if dist < getgenv().Config.MaxFarmDistance and not VisitedChests[v] then
-                -- Check for duplicates in collected positions
                 local isDup = false
                 for _, pos in pairs(CollectedPositions) do 
                     if (v.Position - pos).Magnitude < 5 then isDup = true break end 
@@ -804,7 +751,9 @@ local function MainFarm()
     end
 
     if target then
-        -- [FIX 4: GHOST CHEST SAFETY DURING TWEEN]
+        -- FOUND CHEST -> RESET RETRY COUNTER
+        NoChestCount = 0
+        
         if StatusLbl then 
             StatusLbl.Text = "Chest: " .. math.floor(minDist) .. "m" 
             StatusLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -814,20 +763,18 @@ local function MainFarm()
         tween:Play()
         
         while tween.PlaybackState == Enum.PlaybackState.Playing do 
-            -- Cancellation Conditions
             if Hopping then tween:Cancel() return end 
             
-            -- Ghost Chest Check: If chest disappears or becomes transparent while flying
-            if not target or not target.Parent or target.Transparency >= 0.9 then
+            -- Ghost Check: Only stop if the part completely disappears (Destroyed)
+            -- [FIXED] Removed transparency check here too
+            if not target or not target.Parent then
                 tween:Cancel()
-                VisitedChests[target] = true -- Mark as bad
+                VisitedChests[target] = true
                 return 
             end
-            
             task.wait(0.05) 
         end
         
-        -- Collection Logic
         if target.Parent and (target.Position - root.Position).Magnitude < 15 then
             firetouchinterest(root, target, 0)
             firetouchinterest(root, target, 1)
@@ -836,31 +783,34 @@ local function MainFarm()
             VisitedChests[target] = true
             table.insert(CollectedPositions, target.Position)
             
-            -- Update Stats
             if getgenv().Stats then getgenv().Stats.Chests = getgenv().Stats.Chests + 1 end
             if ChestsLbl and getgenv().Stats then ChestsLbl.Text = "Chests: "..getgenv().Stats.Chests end
-            
             task.wait(getgenv().Config.CollectionWait)
         end
     else
-        -- No Chests Found -> Hop
-        if StatusLbl then StatusLbl.Text = "Finished! Hopping..." end
-        local waitTime = getgenv().Config.FarmChests and 3 or 1
-        task.wait(waitTime) 
-        ServerHop("No Chests")
+        -- NO CHEST FOUND
+        NoChestCount = NoChestCount + 1
+        
+        -- [FIXED] Wait 5 seconds (50 loops) before hopping to let map load
+        if NoChestCount > 50 then 
+            if StatusLbl then StatusLbl.Text = "Finished! Hopping..." end
+            local waitTime = getgenv().Config.FarmChests and 3 or 1
+            task.wait(waitTime) 
+            ServerHop("No Chests")
+        else
+            -- Soft Wait (Waiting for chests to spawn/stream in)
+            if StatusLbl then StatusLbl.Text = "Scanning... (" .. math.floor(NoChestCount/10) .. "s)" end
+        end
     end
 end
 
--- [7] LOOP EXECUTION
+-- [LOOP]
 task.spawn(function() 
     while true do 
         if not Hopping then pcall(MainFarm) end 
         task.wait(0.1) 
     end 
 end)
-
-
-
 
 
 
