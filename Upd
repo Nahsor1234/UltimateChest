@@ -584,11 +584,13 @@ StatusLbl = Label("Status: Starting...", Color3.fromRGB(255, 255, 255), 5)
 
 
 
+
+
 -- //////////////////////////////////////////////////////////////////
--- [SECTION 3] MAIN FARMING LOGIC (Restored V2 Counter & Fixed Toggle)
+-- [SECTION 3] MAIN FARMING LOGIC (Fixed Patience & Model Detection)
 -- //////////////////////////////////////////////////////////////////
 
--- [1] MEMORY MANAGER (GC) - ADDED SAFELY
+-- [1] MEMORY MANAGER (GC)
 local GC_SCHEDULE = { {time = 60, level = "step"}, {time = 300, level = "collect"} }
 task.spawn(function()
     local lastFullGC = tick()
@@ -607,19 +609,18 @@ end)
 -- [2] VARIABLES
 local ChestCache, VisitedChests, CollectedPositions = {}, {}, {}
 local Hopping = false
-local Farming = true -- Controls the Toggle
+local Farming = true
 local RareItems = {"God's Chalice", "Fist of Darkness"}
 local HistoryFile = "NotSameServers.json"
 local LastCacheRefresh = 0
-local NoChestCount = 0 
+local NoChestCount = 0 -- Patience Timer
 
--- [3] HISTORY & BLACKLIST SYSTEM (STRICTER)
+-- [3] HISTORY & BLACKLIST SYSTEM
 local function UpdateServerHistory()
     local History = {}
     local CurrentTime = os.time()
     local CurrentJob = game.JobId
     
-    -- Read File
     pcall(function()
         if isfile(HistoryFile) then
             local fileData = HttpService:JSONDecode(readfile(HistoryFile))
@@ -629,7 +630,6 @@ local function UpdateServerHistory()
         end
     end)
 
-    -- Add Current Job ID
     local found = false
     for _, id in pairs(History) do if id == CurrentJob then found = true break end end
     
@@ -640,7 +640,7 @@ local function UpdateServerHistory()
     end
     return History
 end
-UpdateServerHistory() -- Run on startup
+UpdateServerHistory() 
 
 -- [4] RARE ITEM CHECK
 local function CheckRareItems()
@@ -680,7 +680,7 @@ local function ServerHop(Reason)
 
     StatusLbl.Text = "Searching Server..."
     local PlaceID = game.PlaceId
-    local AllIDs = UpdateServerHistory() -- Refresh List Before Scan
+    local AllIDs = UpdateServerHistory() 
     
     local function Scan()
         local foundAnything = ""
@@ -696,8 +696,6 @@ local function ServerHop(Reason)
                 apiErrors = 0 
                 for _, v in pairs(result.data) do
                     local ID = tostring(v.id)
-                    
-                    -- [FIX] Ensure we don't pick the current server OR history servers
                     if v.playing < (v.maxPlayers - 2) and ID ~= game.JobId then
                         local IsNew = true
                         for _, visitedID in pairs(AllIDs) do if ID == tostring(visitedID) then IsNew = false break end end
@@ -725,21 +723,28 @@ local function ServerHop(Reason)
     task.spawn(Scan)
 end
 
--- [7] CACHE UPDATER (Restored V2 Logic)
+-- [7] CACHE UPDATER (FIXED: Detects Models & Parts)
 local function UpdateCache()
     if os.time() - LastCacheRefresh < 1.5 then return end
     LastCacheRefresh = os.time()
     table.clear(ChestCache)
+    
     for _, v in pairs(workspace:GetDescendants()) do
-        if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then 
-            table.insert(ChestCache, v) 
+        if v.Name:find("Chest") or v.Name:find("Box") then
+            -- Check for Part (Normal)
+            if v:IsA("Part") then 
+                table.insert(ChestCache, v)
+            -- Check for Model (Grouped Chests)
+            elseif v:IsA("Model") then
+                local part = v.PrimaryPart or v:FindFirstChildWhichIsA("Part")
+                if part then table.insert(ChestCache, part) end
+            end
         end
     end
 end
 
--- [8] MAIN FARM LOOP (Restored V2 Logic + Fixes)
+-- [8] MAIN FARM LOOP
 local function MainFarm()
-    -- [TOGGLE FIX] If Farming is OFF, stop immediately
     if not Farming or Hopping then return end
     
     local char = LP.Character
@@ -754,11 +759,9 @@ local function MainFarm()
         if v and v.Parent then
             local dist = (v.Position - root.Position).Magnitude
             if dist < getgenv().Config.MaxFarmDistance and not VisitedChests[v] then
-                -- Check Duplicates
                 local isDup = false
                 for _, pos in pairs(CollectedPositions) do if (v.Position - pos).Magnitude < 5 then isDup = true break end end
                 
-                -- [GHOST FIX] Only target if it looks valid
                 if not isDup and dist < minDist and v.Transparency < 1 then 
                     target = v 
                     minDist = dist 
@@ -768,8 +771,9 @@ local function MainFarm()
     end
 
     if target then
-        -- FOUND CHEST
+        -- RESET PATIENCE TIMER (Found something!)
         NoChestCount = 0
+        
         StatusLbl.Text = "Chest: " .. math.floor(minDist) .. "m"
         StatusLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
         
@@ -777,20 +781,15 @@ local function MainFarm()
         tween:Play()
         
         while tween.PlaybackState == Enum.PlaybackState.Playing do 
-            -- [TOGGLE FIX] Cancel flight if button pressed
             if not Farming or Hopping then tween:Cancel() return end 
-            
-            -- [GHOST FIX] Cancel if chest disappears mid-flight
             if not target or not target.Parent or target.Transparency >= 1 then
                 tween:Cancel()
                 VisitedChests[target] = true
                 return
             end
-            
             task.wait(0.05) 
         end
         
-        -- COLLECTION (Restored V2 Counter Logic)
         if target.Parent and (target.Position - root.Position).Magnitude < 15 then
             firetouchinterest(root, target, 0)
             firetouchinterest(root, target, 1)
@@ -799,18 +798,19 @@ local function MainFarm()
             VisitedChests[target] = true
             table.insert(CollectedPositions, target.Position)
             
-            -- [COUNTER FIX] Use V2 Logic (Increment on Success)
             if getgenv().Stats then 
                 getgenv().Stats.Chests = getgenv().Stats.Chests + 1 
                 if ChestsLbl then ChestsLbl.Text = "Chests: "..getgenv().Stats.Chests end
             end
-            
             task.wait(getgenv().Config.CollectionWait)
         end
     else
-        -- NO CHEST FOUND
+        -- INCREASE PATIENCE TIMER
         NoChestCount = NoChestCount + 1
-        if NoChestCount > 50 then -- Wait ~5 seconds before hopping
+        
+        -- [FIXED] Wait 200 loops (20 Seconds) before hopping
+        -- This allows time to fly between islands without giving up
+        if NoChestCount > 200 then 
             StatusLbl.Text = "Finished! Hopping..."
             local waitTime = getgenv().Config.FarmChests and 3 or 1
             task.wait(waitTime) 
@@ -821,8 +821,7 @@ local function MainFarm()
     end
 end
 
--- [9] UI CONNECTIONS (Updated Scope)
--- Ensure ToggleBtn uses the local 'Farming' variable
+-- [9] UI CONNECTIONS
 if ToggleBtn then
     ToggleBtn.MouseButton1Click:Connect(function() 
         Farming = not Farming 
@@ -842,8 +841,8 @@ task.spawn(function()
         task.wait(0.1) 
     end 
 end)
- 
-                            
+
+
     
 
 
