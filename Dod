@@ -849,8 +849,8 @@ end)
 
 
 
--- // NAHSOR CHESTHUB V15.1 - CHUNK 3 //
--- [HYPER SPEED: 600 Speed + 80 Stud Reach + 0 Delay]
+-- // NAHSOR CHESTHUB V15.0 - CHUNK 3 //
+-- [INTEGRATED: GLIDE FARMER (Touch & Go) + Giant Hitboxes]
 
 task_spawn(function()
     task_wait(2) 
@@ -911,6 +911,7 @@ local function StoreFruit(fruit)
     LP.Character.HumanoidRootPart.CFrame = OldCFrame
 end
 
+-- [UPDATED: HITBOX EXPANDER (GLIDE STYLE)]
 local function UpdateCache()
     if os_time() - LastCacheRefresh < 1.5 then return end
     LastCacheRefresh = os_time()
@@ -918,12 +919,12 @@ local function UpdateCache()
     
     for _, v in pairs(workspace:GetDescendants()) do
         if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
-            -- [GIANT HITBOX]
+            -- [GLIDE VISUALS] 
             if v.Size.X < 50 then
-                v.Size = Vector3.new(120, 120, 120) -- Even bigger for easier hits
+                v.Size = Vector3.new(100, 100, 100) -- Giant Hitbox
                 v.Transparency = 0.7 
                 v.CanCollide = false
-                v.Color = Color3.fromRGB(255, 0, 0) -- Red = Hyper Speed Mode
+                v.Color = Color3.fromRGB(0, 255, 255) -- Cyan
                 v.Material = Enum.Material.ForceField
             end
             table.insert(ChestCache, v)
@@ -988,25 +989,24 @@ local function MainFarm()
         end
     end
 
-    -- [3] EXECUTE ACTION (HYPER GLIDE)
+    -- [3] EXECUTE ACTION (GLIDE FARMER LOGIC)
     if target then
         IsMoving = true
-        StatusLbl.Text = "Hyper Glide: " .. math_floor(minDist) .. "m"
-        StatusLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
+        StatusLbl.Text = "Gliding: " .. math_floor(minDist) .. "m"
+        StatusLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
         
-        -- A. Anti-Gravity
+        -- A. Anti-Gravity (From Glide Script)
         local bv = Instance.new("BodyVelocity", root)
         bv.Velocity = Vector3.new(0,0,0)
         bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
         
-        -- B. Speed Calculation (FORCE 600 SPEED)
-        local HYPER_SPEED = 600 -- Overrides Config.TweenSpeed
-        local tTime = minDist / HYPER_SPEED
-        
+        -- B. Setup Tween
+        local tTime = minDist / Config.TweenSpeed
         local tween = TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
         tween:Play()
         
-        -- C. Touch & Go (EARLY EXIT)
+        -- C. Touch & Go Loop
+        -- We don't wait for completion. We wait until we hit the Edge (50 studs).
         local arrived = false
         while not arrived do
             if not Farming or Hopping then 
@@ -1015,20 +1015,22 @@ local function MainFarm()
                 return 
             end
             
-            -- [[ EXIT EARLY ]] --
-            -- We stop 80 studs away because the hitbox is 120.
-            if (target.Position - root.Position).Magnitude < 80 then
-                tween:Cancel()
+            -- [[ THE GLIDE CHECK ]] --
+            -- 100 Size Hitbox = 50 Radius. We stop at 50.
+            if (target.Position - root.Position).Magnitude < 50 then
+                tween:Cancel() -- Cut engine
                 arrived = true
             end
             
+            -- Failsafe
             if tween.PlaybackState == Enum.PlaybackState.Completed then
                 arrived = true 
             end
+            
             RunService.Stepped:Wait()
         end
         
-        -- D. Instant Collect (NO DELAYS)
+        -- D. Collect
         if target.Parent then
             firetouchinterest(root, target, 0)
             firetouchinterest(root, target, 1)
@@ -1040,9 +1042,10 @@ local function MainFarm()
             ChestsLbl.Text = "Chests: "..Stats.Chests
         end
         
+        -- Cleanup
         bv:Destroy()
         IsMoving = false
-        -- ZERO WAIT: Immediately loop to next chest
+        -- No wait logic here; loop immediately restarts for next chest
     else
         StatusLbl.Text = "Finished! Hopping..."
         local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
