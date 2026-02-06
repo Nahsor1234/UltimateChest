@@ -845,8 +845,11 @@ end)
 
                             
         
+
+
+
 -- // NAHSOR CHESTHUB V14.9 - CHUNK 3 //
--- [FIX: Fruit Name UI + SAVER Button + Syntax Repairs]
+-- [FIX: Hitbox Expansion (100x100x100) + Glide Collection]
 
 task_spawn(function()
     task_wait(2) 
@@ -883,18 +886,15 @@ BlurFrame.Name, BlurFrame.Size, BlurFrame.BackgroundColor3, BlurFrame.Visible = 
 local function StoreFruit(fruit)
     if not fruit or not fruit:FindFirstChild("Handle") then return end
     
-    -- [UPDATED LOGIC: Capture Name Immediately]
     local fruitName = fruit.Name
     if fruit:GetAttribute("OriginalName") then fruitName = fruit:GetAttribute("OriginalName") end
     
-    -- Debug Print
     print("[NahsorDebug] Detected Fruit: " .. tostring(fruitName))
     
-    -- Update UI List Instantly
     table.insert(CollectedFruits, fruitName)
     if #CollectedFruits > 0 then
         FruitLbl.Text = "Fruit: " .. table.concat(CollectedFruits, ", ")
-        FruitLbl.TextColor3 = Color3.fromRGB(0, 255, 255) -- Cyan Color
+        FruitLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
     end
     
     local OldCFrame = LP.Character.HumanoidRootPart.CFrame
@@ -910,12 +910,24 @@ local function StoreFruit(fruit)
     LP.Character.HumanoidRootPart.CFrame = OldCFrame
 end
 
+-- [UPDATED: HITBOX EXPANDER (100x100x100)]
 local function UpdateCache()
     if os_time() - LastCacheRefresh < 1.5 then return end
     LastCacheRefresh = os_time()
     table.clear(ChestCache)
+    
+    -- Scan and Resize
     for _, v in pairs(workspace:GetDescendants()) do
-        if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then table.insert(ChestCache, v) end
+        if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
+            -- [NEW] Force Hitbox to 100x100x100
+            if v.Size.X < 50 then
+                v.Size = Vector3.new(100, 100, 100)
+                v.Transparency = 0.7       -- See-through
+                v.CanCollide = false       -- Glide through
+                v.Massless = true          -- No physics weight
+            end
+            table.insert(ChestCache, v)
+        end
     end
 end
 
@@ -960,26 +972,43 @@ local function MainFarm()
         end
     end
 
-    -- [3] EXECUTE ACTION
+    -- [3] EXECUTE ACTION (GLIDE MODE)
     if target then
         IsMoving = true
         StatusLbl.Text = "Chest: " .. math_floor(minDist) .. "m"
         StatusLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        
+        -- Tween to chest
         local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
         tween:Play()
+        
+        -- [NEW] GLIDE COLLECTION LOGIC
+        -- Since hitbox is 100x100x100, we "touch" it at ~50 studs distance.
+        -- We stop the tween early to simulate "gliding through" and moving to the next one faster.
         while tween.PlaybackState == Enum.PlaybackState.Playing do 
             if not Farming or Hopping then tween:Cancel() return end 
+            
+            -- Early Exit: If within 60 studs (Inside Hitbox)
+            if (target.Position - root.Position).Magnitude < 60 then
+                tween:Cancel()
+                break
+            end
             task_wait(0.05) 
         end
-        if target.Parent and (target.Position - root.Position).Magnitude < 15 then
+        
+        -- Collect & Mark
+        if target.Parent then
             firetouchinterest(root, target, 0)
             firetouchinterest(root, target, 1)
             pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
+            
             VisitedChests[target] = true
             table.insert(CollectedPositions, target.Position)
             Stats.Chests = Stats.Chests + 1
             ChestsLbl.Text = "Chests: "..Stats.Chests
-            task_wait(Config.CollectionWait)
+            
+            -- Shorter wait because we glide fast
+            task_wait(0.1) 
         end
         IsMoving = false
     else
@@ -995,27 +1024,20 @@ end
 ToggleBtn.MouseButton1Click:Connect(function() Farming = not Farming ToggleBtn.Text = Farming and "ON" or "OFF" ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
 HopBtn.MouseButton1Click:Connect(function() Hopping = false ServerHop() end)
 
--- [AFK Button Logic]
 AFKBtn.MouseButton1Click:Connect(function() 
     local IsAFK = not BlurFrame.Visible 
     AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) 
     BlurFrame.Visible = IsAFK 
 end)
 
--- [UPDATED: SAVER BUTTON LOGIC]
 RenderBtn.MouseButton1Click:Connect(function() 
     Config.Disable3DRender = not Config.Disable3DRender
     local State = Config.Disable3DRender
-    
-    -- SAVER: ON (Green) = Feature Active (Black Screen)
-    -- SAVER: OFF (Red) = Feature Inactive (Visible Screen)
     RenderBtn.Text = State and "3d Rend: ON" or "3d Rend: OFF"
     RenderBtn.BackgroundColor3 = State and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
-    
     pcall(function() RunService:Set3dRenderingEnabled(not State) end)
 end)
 
--- [INIT: Check Initial State]
 if Config.Disable3DRender then
     RenderBtn.Text = "3d Rend: ON"
     RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
@@ -1036,7 +1058,6 @@ task.spawn(function()
         if not Farming or (Config.StopOnRareItem and CheckRareItems()) then continue end
         if Config.MaxTime and (os.time() - StartClock) >= Config.MaxTime then
             Farming, Hopping = false, true
-            
             pcall(function() RunService:Set3dRenderingEnabled(false) if LP.Character:FindFirstChild("HumanoidRootPart") then LP.Character.HumanoidRootPart.Anchored = true end end)
             local s, r = pcall(function() return HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. game.PlaceId .. '/servers/Public?sortOrder=Desc&limit=100')) end)
             if s and r and r.data then
@@ -1055,7 +1076,6 @@ task.spawn(function()
     while task.wait(5) do
         local ping = math.floor(Network:GetValue())
         if ping > 2000 then
-            -- [FIXED SYNTAX ERROR HERE]
             FailCount = FailCount + 1
             StatusLbl.Text = "LAG FREEZE ("..FailCount.."/3)"
         else
@@ -1070,5 +1090,3 @@ task.spawn(function()
         end
     end
 end)
-
-
