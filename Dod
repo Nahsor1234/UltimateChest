@@ -486,6 +486,24 @@ end
 -- [7] ULTRA FAST MODE
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
+    pcall(function()
+        local L = game:GetService("Lighting")
+        L.GlobalShadows = false
+        L.FogEnd = 9e9
+        L.Brightness = 0.4
+        L.Ambient = Color3.new(0,0,0)
+        L.OutdoorAmbient = Color3.new(0,0,0)
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        for _,v in pairs(L:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end end
+        local function Clear(v)
+            if v:IsA("BasePart") then v.Material, v.CastShadow = Enum.Material.SmoothPlastic, false
+            elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") then v:Destroy()
+            elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then v:Destroy() end
+        end
+        for _,v in pairs(workspace:GetDescendants()) do Clear(v) end
+        workspace.DescendantAdded:Connect(Clear)
+    end)
 
     -- // ICE KING PROTOCOL (ICE FRUIT PASSIVE + NUKE) //
     local Players = game:GetService("Players")
