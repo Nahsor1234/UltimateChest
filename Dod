@@ -483,108 +483,60 @@ end
 
 
 
--- [7] ULTRA FAST MODE (Safety Lock Fix)
+-- [7] ULTRA FAST MODE (Shortened & Optimized)
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     
-    local P = game:GetService("Players")
-    local RS = game:GetService("RunService")
-    local W = workspace
-    local LP = P.LocalPlayer
+    -- [1] NUKE VISUALS & TERRAIN (Stops rendering far islands)
+    pcall(function()
+        local L, T = game:GetService("Lighting"), workspace.Terrain
+        L.GlobalShadows, L.FogEnd, L.Brightness = false, 9e9, 0
+        settings().Rendering.QualityLevel = 1
+        for _,v in pairs(L:GetChildren()) do v:Destroy() end
+        T:Clear() -- [CRITICAL] Deletes all water & islands instantly
+    end)
+
+    -- [2] ICE KING PROTOCOL
+    local P, RS, W = game:GetService("Players"), game:GetService("RunService"), workspace
+    local LP, Ice = P.LocalPlayer, Instance.new("Part")
     
-    -- [STEP 1] SAFETY LOCK (Prevent Falling/Disappearing)
-    print("\n--- ❄️ SECURING CHARACTER ---")
-    local Root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    if Root then
-        Root.Anchored = true -- FREEZE PLAYER SO THEY DON'T FALL
-        Root.CFrame = Root.CFrame + Vector3.new(0, 10, 0) -- Teleport Up slightly
-    end
-    
-    -- [STEP 2] CREATE MASSIVE SAFETY FLOOR
-    local Ice = Instance.new("Part")
-    Ice.Name = "IceWalkPlatform"
-    Ice.Anchored = true
-    Ice.CanCollide = true
-    Ice.Transparency = 0.5
-    Ice.Size = Vector3.new(500, 1, 500) -- Huge size so you can't miss it
-    Ice.Color = Color3.fromRGB(0, 255, 255)
-    Ice.CFrame = Root.CFrame - Vector3.new(0, 5, 0) -- Place directly under feet
-    Ice.Parent = W
-    
-    -- Keep the floor under you (Update Loop)
+    print("\n--- ❄️ ACTIVATING ICE WALK ---")
+    Ice.Name, Ice.Anchored, Ice.CanCollide, Ice.Transparency = "IceWalkPlatform", true, true, 0.5
+    Ice.Size, Ice.Color, Ice.Parent = Vector3.new(50, 1, 50), Color3.fromRGB(0, 255, 255), W
+
     RS.RenderStepped:Connect(function()
         if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
             local r = LP.Character.HumanoidRootPart
-            -- Keep ice under feet at sea level height
-            Ice.CFrame = CFrame.new(r.Position.X, 4, r.Position.Z) 
-            
-            -- Anti-Void: If you somehow fall, teleport back up
-            if r.Position.Y < -50 then 
-                r.CFrame = r.CFrame + Vector3.new(0, 100, 0)
-                r.Velocity = Vector3.zero
-            end
+            Ice.CFrame = CFrame.new(r.Position.X, 4, r.Position.Z) -- Lock to Sea Level (4)
+            if r.Position.Y < -5 then r.CFrame = r.CFrame + Vector3.new(0, 10, 0) end
         end
     end)
-    
-    task.wait(0.5) -- Wait to ensure platform exists
+    task.wait(0.2) -- Safety wait for ice
 
-    -- [STEP 3] CLEAN VISUALS & TERRAIN
-    pcall(function()
-        W.Terrain:Clear() -- Remove Water/Ground
-        game:GetService("Lighting").GlobalShadows = false
-        settings().Rendering.QualityLevel = 1
-    end)
-
-    -- [STEP 4] RESCUE & NUKE MAP
+    -- [3] RESCUE ITEMS & NUKE MAP
     print("📦 Cleaning Map...")
     local Rescued = {}
-    local processed = 0 
-
-    -- A. Rescue Chests
+    
+    -- A. Rescue (Find Chests/Fruit and move to safe Workspace root)
     for _,v in pairs(W:GetDescendants()) do
         if v.Name:find("Chest") or v.Name:find("Fruit") or v.Name:find("Box") then
-            -- Don't steal parts from inside a chest model
             if not (v.Parent.Name:find("Chest") or v.Parent.Name:find("Fruit")) then
                 v.Parent = W
                 if v:IsA("BasePart") then v.Anchored = true end
                 table.insert(Rescued, v)
             end
         end
-        processed = processed + 1
-        if processed % 2000 == 0 then task.wait() end
     end
-    
-    task.wait(0.2)
+    task.wait(0.1)
 
-    -- B. Delete Map Objects
-    processed = 0
+    -- B. Nuke (Destroy everything else)
     for _,v in pairs(W:GetChildren()) do
-        -- STRICT WHITELIST: Don't delete Player, Camera, Ice, or Rescued Items
-        local IsPlayer = P:GetPlayerFromCharacter(v)
-        local IsCamera = (v.Name == "Camera")
-        local IsIce = (v == Ice)
-        local IsRescued = table.find(Rescued, v)
-        
-        if not IsPlayer and not IsCamera and not IsIce and not IsRescued then
+        if v ~= Ice and v.Name ~= "Camera" and not P:GetPlayerFromCharacter(v) and not table.find(Rescued, v) then
             pcall(function() v:Destroy() end)
         end
-        
-        processed = processed + 1
-        if processed % 100 == 0 then task.wait() end
-    end
-
-    -- [STEP 5] RELEASE PLAYER (Unfreeze)
-    print("✅ Map Cleaned. Releasing Player.")
-    if Root then
-        Root.Anchored = false -- UNFREEZE SO YOU CAN MOVE
-    end
-    
-    -- Fix Camera if it got stuck
-    if W.CurrentCamera and LP.Character then
-        W.CurrentCamera.CameraSubject = LP.Character:FindFirstChild("Humanoid")
     end
 end
-    
+        
     
 
 
