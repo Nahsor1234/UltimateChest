@@ -481,48 +481,43 @@ end
 
 
 
--- [7] ULTRA FAST MODE (REPLACED WITH ICE KING MAP DELETER)
+
+
+
+
+-- [7] ULTRA FAST MODE
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     
-    -- [DEFINITIONS]
+    -- // ICE KING PROTOCOL //
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local LP = Players.LocalPlayer
-    local Workspace = game:GetService("Workspace")
-    
-    -- [CONFIG]
-    local SEA_LEVEL = 4 -- The height of the water surface
-    local PLATFORM_SIZE = 15 -- Size of the ice under your feet
-    
-    print("❄️ ULTRA FAST MODE: ACTIVATING ICE KING PROTOCOL...")
+    local TARGET_FOLDER = workspace:FindFirstChild("Map") or workspace
+    local SEA_LEVEL = 4
+    local PLATFORM_SIZE = 15
+
+    print("\n--- ❄️ ACTIVATING ICE WALK PASSIVE ---")
 
     -- [STEP 1] CREATE THE DYNAMIC ICE PLATFORM
     local function ActivateIceWalk()
-        -- Cleanup old if exists
-        if Workspace:FindFirstChild("IceWalkPlatform") then Workspace.IceWalkPlatform:Destroy() end
-
         local IcePart = Instance.new("Part")
         IcePart.Name = "IceWalkPlatform"
-        IcePart.Parent = Workspace
+        IcePart.Parent = workspace
         IcePart.Anchored = true
         IcePart.CanCollide = true
         
-        -- Visuals: Make it look like the Ice Fruit ability
-        IcePart.Color = Color3.fromRGB(0, 255, 255) -- Cyan
+        -- Visuals
+        IcePart.Color = Color3.fromRGB(0, 255, 255)
         IcePart.Material = Enum.Material.Ice
-        IcePart.Transparency = 0.3 -- Slightly see-through
+        IcePart.Transparency = 0.3
         IcePart.Size = Vector3.new(PLATFORM_SIZE, 1, PLATFORM_SIZE)
         
-        -- [THE LOOP] Update position every frame
+        -- [THE LOOP]
         RunService.RenderStepped:Connect(function()
             if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
                 local root = LP.Character.HumanoidRootPart
-                
-                -- Logic: Keep the ice directly under the player, but LOCK the height to SEA_LEVEL
                 IcePart.CFrame = CFrame.new(root.Position.X, SEA_LEVEL, root.Position.Z)
-                
-                -- Optional: If player falls BELOW sea level (glitch), force them up
                 if root.Position.Y < (SEA_LEVEL - 5) then
                     root.CFrame = CFrame.new(root.Position.X, SEA_LEVEL + 5, root.Position.Z)
                     root.Velocity = Vector3.zero
@@ -531,79 +526,49 @@ local function ApplyUltraFastMode()
         end)
     end
     ActivateIceWalk()
-    
+    task.wait(0.5)
+
     -- [STEP 2] RESCUE CHESTS & FRUITS
-    local savedObjects = {} -- Keep track to prevent deletion
-    
-    for _, v in pairs(Workspace:GetDescendants()) do
-        -- Safety Pcall to ignore errors
-        pcall(function()
-            local n = v.Name
-            if n:find("Chest") or n:find("Box") or n:find("Fruit") then
-                if v.Parent then
-                    local obj = v
-                    -- If it's a part inside a Chest/Fruit Model, grab the Model instead
-                    if v.Parent:IsA("Model") and (v.Parent.Name:find("Chest") or v.Parent.Name:find("Fruit")) then
-                        obj = v.Parent
-                    end
-                    
-                    -- Move to Workspace Safe Zone
-                    if obj.Parent ~= Workspace then
-                        obj.Parent = Workspace
-                        
-                        -- Anchor so they float
-                        if obj:IsA("BasePart") then 
-                            obj.Anchored = true 
-                        elseif obj:IsA("Model") then 
-                            local pp = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                            if pp then pp.Anchored = true end
-                        end
-                    end
-                    savedObjects[obj] = true
+    print("📦 Rescuing Items...")
+    local rescued = 0
+    for _, v in pairs(TARGET_FOLDER:GetDescendants()) do
+        local n = v.Name
+        if n:find("Chest") or n:find("Box") or n:find("Fruit") then
+            if not (v.Parent.Name:find("Chest") or v.Parent.Name:find("Fruit")) then 
+                v.Parent = workspace
+                if v:IsA("BasePart") then v.Anchored = true end
+                if v:IsA("Model") then 
+                    local pp = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
+                    if pp then pp.Anchored = true end
                 end
+                rescued = rescued + 1
             end
-        end)
+        end
     end
+    print("✅ Rescued " .. rescued .. " items.")
+    task.wait(1)
 
     -- [STEP 3] NUKE THE MAP
-    for _, v in pairs(Workspace:GetChildren()) do
-        pcall(function()
+    if workspace:FindFirstChild("Map") then
+        workspace.Map:Destroy()
+    else
+        for _, v in pairs(workspace:GetChildren()) do
             local n = v.Name
-            -- TRIPLE SAFETY CHECK (Don't delete Player or Safe Items)
-            local isPlayer = (v == LP.Character or n == LP.Name or Players:GetPlayerFromCharacter(v))
-            
-            if not isPlayer and 
-               n ~= "Camera" and 
-               n ~= "Terrain" and 
-               n ~= "IceWalkPlatform" and 
-               not savedObjects[v] and 
-               not (n:find("Chest") or n:find("Fruit")) then
-               
-                v:Destroy()
+            if n ~= "Camera" and n ~= "Terrain" and n ~= "IceWalkPlatform" and not Players:GetPlayerFromCharacter(v) then
+                if not (n:find("Chest") or n:find("Fruit")) then
+                    pcall(function() v:Destroy() end)
+                end
             end
-        end)
+        end
     end
-    
-    print("❄️ ICE KING MODE: MAP DELETED")
+    print("🗑️ Map Deleted.")
 end
 
-task.spawn(function()
-    task.wait(1)
+task_spawn(function()
+    task_wait(1)
     if Config.UltraFastMode then ApplyUltraFastMode()
     elseif Config.FastMode then ApplyFastMode() end
 end)
-
-
-
-
- 
-
--- Your Trigger Function
-task.spawn(function()
-    task.wait(1)
-    if Config.UltraFastMode then ApplyUltraFastMode()
-    elseif Config.FastMode then ApplyFastMode() end
-        end)
 
 
 
