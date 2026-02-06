@@ -546,6 +546,21 @@ local function ApplyUltraFastMode()
         end
     end
 
+    -- Micro island hider
+task.spawn(function()
+    while task.wait(2) do
+        local r = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if r then for _,p in pairs(workspace:GetDescendants()) do
+            if p:IsA("BasePart") and (p.Position - r.Position).Magnitude > 50 then
+                p.Transparency, p.CanCollide = 1, false
+            end
+        end end
+    end
+end)
+
+
+
+
     if workspace:FindFirstChild("Map") then
         workspace.Map:Destroy()
     else
@@ -558,6 +573,7 @@ local function ApplyUltraFastMode()
             end
         end
     end
+
 
     -- Memory Cleanup Trigger (Added)
     task.wait(1)
