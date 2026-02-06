@@ -848,8 +848,9 @@ end)
 
 
 
--- // NAHSOR CHESTHUB V14.9 - CHUNK 3 //
--- [FIX: Hitbox Expansion (100x100x100) + Glide Collection]
+
+-- // NAHSOR CHESTHUB V15.0 - CHUNK 3 //
+-- [INTEGRATED: GLIDE FARMER (Touch & Go) + Giant Hitboxes]
 
 task_spawn(function()
     task_wait(2) 
@@ -910,21 +911,21 @@ local function StoreFruit(fruit)
     LP.Character.HumanoidRootPart.CFrame = OldCFrame
 end
 
--- [UPDATED: HITBOX EXPANDER (100x100x100)]
+-- [UPDATED: HITBOX EXPANDER (GLIDE STYLE)]
 local function UpdateCache()
     if os_time() - LastCacheRefresh < 1.5 then return end
     LastCacheRefresh = os_time()
     table.clear(ChestCache)
     
-    -- Scan and Resize
     for _, v in pairs(workspace:GetDescendants()) do
         if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
-            -- [NEW] Force Hitbox to 100x100x100
+            -- [GLIDE VISUALS] 
             if v.Size.X < 50 then
-                v.Size = Vector3.new(100, 100, 100)
-                v.Transparency = 0.7       -- See-through
-                v.CanCollide = false       -- Glide through
-                v.Massless = true          -- No physics weight
+                v.Size = Vector3.new(100, 100, 100) -- Giant Hitbox
+                v.Transparency = 0.7 
+                v.CanCollide = false
+                v.Color = Color3.fromRGB(0, 255, 255) -- Cyan
+                v.Material = Enum.Material.ForceField
             end
             table.insert(ChestCache, v)
         end
@@ -936,6 +937,22 @@ local function CheckStuck(root)
         if os_time() - LastMoveTime > 12 then StatusLbl.Text = "Stuck! Hopping..." ServerHop() end
     else LastMoveTime = os_time() LastPos = root.Position end
 end
+
+-- [NOCLIP LOOP]
+task_spawn(function()
+    while true do
+        if Farming then
+            pcall(function()
+                if LP.Character then
+                    for _, v in pairs(LP.Character:GetDescendants()) do
+                        if v:IsA("BasePart") then v.CanCollide = false end
+                    end
+                end
+            end)
+        end
+        task_wait(0.1)
+    end
+end)
 
 local function MainFarm()
     if not Farming or Hopping then return end
@@ -972,31 +989,48 @@ local function MainFarm()
         end
     end
 
-    -- [3] EXECUTE ACTION (GLIDE MODE)
+    -- [3] EXECUTE ACTION (GLIDE FARMER LOGIC)
     if target then
         IsMoving = true
-        StatusLbl.Text = "Chest: " .. math_floor(minDist) .. "m"
-        StatusLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        StatusLbl.Text = "Gliding: " .. math_floor(minDist) .. "m"
+        StatusLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
         
-        -- Tween to chest
-        local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+        -- A. Anti-Gravity (From Glide Script)
+        local bv = Instance.new("BodyVelocity", root)
+        bv.Velocity = Vector3.new(0,0,0)
+        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        
+        -- B. Setup Tween
+        local tTime = minDist / Config.TweenSpeed
+        local tween = TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
         tween:Play()
         
-        -- [NEW] GLIDE COLLECTION LOGIC
-        -- Since hitbox is 100x100x100, we "touch" it at ~50 studs distance.
-        -- We stop the tween early to simulate "gliding through" and moving to the next one faster.
-        while tween.PlaybackState == Enum.PlaybackState.Playing do 
-            if not Farming or Hopping then tween:Cancel() return end 
-            
-            -- Early Exit: If within 60 studs (Inside Hitbox)
-            if (target.Position - root.Position).Magnitude < 60 then
-                tween:Cancel()
-                break
+        -- C. Touch & Go Loop
+        -- We don't wait for completion. We wait until we hit the Edge (50 studs).
+        local arrived = false
+        while not arrived do
+            if not Farming or Hopping then 
+                tween:Cancel() 
+                bv:Destroy() 
+                return 
             end
-            task_wait(0.05) 
+            
+            -- [[ THE GLIDE CHECK ]] --
+            -- 100 Size Hitbox = 50 Radius. We stop at 50.
+            if (target.Position - root.Position).Magnitude < 50 then
+                tween:Cancel() -- Cut engine
+                arrived = true
+            end
+            
+            -- Failsafe
+            if tween.PlaybackState == Enum.PlaybackState.Completed then
+                arrived = true 
+            end
+            
+            RunService.Stepped:Wait()
         end
         
-        -- Collect & Mark
+        -- D. Collect
         if target.Parent then
             firetouchinterest(root, target, 0)
             firetouchinterest(root, target, 1)
@@ -1006,11 +1040,12 @@ local function MainFarm()
             table.insert(CollectedPositions, target.Position)
             Stats.Chests = Stats.Chests + 1
             ChestsLbl.Text = "Chests: "..Stats.Chests
-            
-            -- Shorter wait because we glide fast
-            task_wait(0.1) 
         end
+        
+        -- Cleanup
+        bv:Destroy()
         IsMoving = false
+        -- No wait logic here; loop immediately restarts for next chest
     else
         StatusLbl.Text = "Finished! Hopping..."
         local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
@@ -1048,7 +1083,7 @@ else
     pcall(function() RunService:Set3dRenderingEnabled(true) end)
 end
 
-task_spawn(function() while true do if Farming and not Hopping then pcall(MainFarm) end task_wait(0.1) end end)
+task_spawn(function() while true do if Farming and not Hopping then pcall(MainFarm) end task_wait() end end)
 task_spawn(function() while true do TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor((os_time()-Stats.StartTime)/3600), math_floor(((os_time()-Stats.StartTime)%3600)/60), (os_time()-Stats.StartTime)%60) task_wait(1) end end)
 
 task.spawn(function()
