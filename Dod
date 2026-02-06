@@ -483,19 +483,19 @@ end
 
 
 
-
-
 -- [7] ULTRA FAST MODE
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
-    
-    -- // ICE KING PROTOCOL //
+
+    -- // ICE KING PROTOCOL (ICE FRUIT PASSIVE + NUKE) //
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local LP = Players.LocalPlayer
     local TARGET_FOLDER = workspace:FindFirstChild("Map") or workspace
-    local SEA_LEVEL = 4
-    local PLATFORM_SIZE = 15
+
+    -- [CONFIG]
+    local SEA_LEVEL = 4 -- The height of the water surface
+    local PLATFORM_SIZE = 15 -- Size of the ice under your feet
 
     print("\n--- ❄️ ACTIVATING ICE WALK PASSIVE ---")
 
@@ -507,24 +507,30 @@ local function ApplyUltraFastMode()
         IcePart.Anchored = true
         IcePart.CanCollide = true
         
-        -- Visuals
-        IcePart.Color = Color3.fromRGB(0, 255, 255)
+        -- Visuals: Make it look like the Ice Fruit ability
+        IcePart.Color = Color3.fromRGB(0, 255, 255) -- Cyan
         IcePart.Material = Enum.Material.Ice
-        IcePart.Transparency = 0.3
+        IcePart.Transparency = 0.3 -- Slightly see-through
         IcePart.Size = Vector3.new(PLATFORM_SIZE, 1, PLATFORM_SIZE)
         
-        -- [THE LOOP]
+        -- [THE LOOP] Update position every frame
         RunService.RenderStepped:Connect(function()
             if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
                 local root = LP.Character.HumanoidRootPart
+                
+                -- Logic: Keep the ice directly under the player, but LOCK the height to SEA_LEVEL
                 IcePart.CFrame = CFrame.new(root.Position.X, SEA_LEVEL, root.Position.Z)
+                
+                -- Optional: If player falls BELOW sea level (glitch), force them up
                 if root.Position.Y < (SEA_LEVEL - 5) then
                     root.CFrame = CFrame.new(root.Position.X, SEA_LEVEL + 5, root.Position.Z)
                     root.Velocity = Vector3.zero
                 end
             end
         end)
+        print("❄️ Ice Walk Active. You can now lk on 'water'.")
     end
+
     ActivateIceWalk()
     task.wait(0.5)
 
@@ -554,6 +560,7 @@ local function ApplyUltraFastMode()
     else
         for _, v in pairs(workspace:GetChildren()) do
             local n = v.Name
+            -- PROTECT THE ICE PLATFORM & ITEMS
             if n ~= "Camera" and n ~= "Terrain" and n ~= "IceWalkPlatform" and not Players:GetPlayerFromCharacter(v) then
                 if not (n:find("Chest") or n:find("Fruit")) then
                     pcall(function() v:Destroy() end)
