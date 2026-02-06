@@ -480,9 +480,6 @@ end
 
 
 
-
-
---7
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     
