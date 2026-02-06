@@ -479,93 +479,87 @@ local function ApplyFastMode()
 end
 
 
---7
 
+
+
+--7
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
     
--- // ICE KING PROTOCOL (ICE FRUIT PASSIVE + NUKE) //
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LP = Players.LocalPlayer
-local TARGET_FOLDER = workspace:FindFirstChild("Map") or workspace
+    local Players = game:GetService("Players")
+    local LP = Players.LocalPlayer
+    local RunService = game:GetService("RunService")
+    local SEA_LEVEL = 4 
+    local PLATFORM_SIZE = 15 
+    local HITBOX_SIZE = 100 -- Your requested size
 
--- [CONFIG]
-local SEA_LEVEL = 4 -- The height of the water surface
-local PLATFORM_SIZE = 15 -- Size of the ice under your feet
-
-print("\n--- ❄️ ACTIVATING ICE WALK PASSIVE ---")
-
--- [STEP 1] CREATE THE DYNAMIC ICE PLATFORM
-local function ActivateIceWalk()
-    local IcePart = Instance.new("Part")
+    -- [STEP 1] ICE PLATFORM (SMOOTH MOVEMENT)
+    local IcePart = Instance.new("Part", workspace)
     IcePart.Name = "IceWalkPlatform"
-    IcePart.Parent = workspace
-    IcePart.Anchored = true
-    IcePart.CanCollide = true
-    
-    -- Visuals: Make it look like the Ice Fruit ability
-    IcePart.Color = Color3.fromRGB(0, 255, 255) -- Cyan
-    IcePart.Material = Enum.Material.Ice
-    IcePart.Transparency = 0.3 -- Slightly see-through
-    IcePart.Size = Vector3.new(PLATFORM_SIZE, 1, PLATFORM_SIZE)
-    
-    -- [THE LOOP] Update position every frame
+    IcePart.Anchored, IcePart.CanCollide = true, true
+    IcePart.Color, IcePart.Material = Color3.fromRGB(0, 255, 255), Enum.Material.Ice
+    IcePart.Transparency, IcePart.Size = 0.3, Vector3.new(PLATFORM_SIZE, 1, PLATFORM_SIZE)
+
     RunService.RenderStepped:Connect(function()
         if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
             local root = LP.Character.HumanoidRootPart
-            
-            -- Logic: Kepp the ice directly under the player, but LOCK the height to SEA_LEVEL
-            -- This mimics walking on water.
             IcePart.CFrame = CFrame.new(root.Position.X, SEA_LEVEL, root.Position.Z)
-            
-            -- Optional: If player falls BELOW sea level (glitch), force them up
+            -- Hard floor check to stop falling
             if root.Position.Y < (SEA_LEVEL - 5) then
                 root.CFrame = CFrame.new(root.Position.X, SEA_LEVEL + 5, root.Position.Z)
                 root.Velocity = Vector3.zero
             end
         end
     end)
-    print("❄️ Ice Walk Active. You can now walk on 'water'.")
-end
 
-ActivateIceWalk()
-task.wait(0.5)
+    -- [STEP 2] RESCUE, HITBOX EXPAND & NUKE
+    local saved = {}
+    for _, v in pairs(workspace:GetDescendants()) do
+        pcall(function()
+            if v.Name:find("Chest") or v.Name:find("Box") or v.Name:find("Fruit") then
+                -- Identify the whole model
+                local obj = (v.Parent and (v.Parent.Name:find("Chest") or v.Parent.Name:find("Fruit"))) and v.Parent or v
+                
+                -- Expand Hitbox (Apply to every part inside the chest/fruit)
+                if v:IsA("BasePart") then
+                    v.Size = Vector3.new(HITBOX_SIZE, HITBOX_SIZE, HITBOX_SIZE)
+                    v.Transparency = 0.7 -- Make them see-through so they don't block your view
+                    v.CanCollide = false
+                end
 
--- [STEP 2] RESCUE CHESTS & FRUITS
-local rescued = 0
-for _, v in pairs(TARGET_FOLDER:GetDescendants()) do
-    local n = v.Name
-    if n:find("Chest") or n:find("Box") or n:find("Fruit") then
-        if not (v.Parent.Name:find("Chest") or v.Parent.Name:find("Fruit")) then 
-            v.Parent = workspace
-            if v:IsA("BasePart") then v.Anchored = true end
-            if v:IsA("Model") then 
-                local pp = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
-                if pp then pp.Anchored = true end
+                -- Move to Safe Zone
+                if obj.Parent ~= workspace then
+                    obj.Parent = workspace
+                    -- Ensure it stays in the air
+                    if obj:IsA("BasePart") then 
+                        obj.Anchored = true 
+                    elseif obj:IsA("Model") then
+                        for _, child in pairs(obj:GetDescendants()) do
+                            if child:IsA("BasePart") then child.Anchored = true end
+                        end
+                    end
+                end
+                saved[obj] = true
             end
-            rescued = rescued + 1
-        end
+        end)
     end
-end
-print("✅ Rescued " .. rescued .. " items.")
-task.wait(1)
 
--- [STEP 3] NUKE THE MAP
-if workspace:FindFirstChild("Map") then
-    workspace.Map:Destroy()
-else
+    -- [STEP 3] NUKE EVERYTHING ELSE
     for _, v in pairs(workspace:GetChildren()) do
-        local n = v.Name
-        -- PROTECT THE ICE PLATFORM & ITEMS
-        if n ~= "Camera" and n ~= "Terrain" and n ~= "IceWalkPlatform" and not Players:GetPlayerFromCharacter(v) then
-            if not (n:find("Chest") or n:find("Fruit")) then
-                pcall(function() v:Destroy() end)
+        pcall(function()
+            -- Triple safety: Don't delete Player, Camera, Terrain, Ice, or Saved Items
+            local isPlayer = (v == LP.Character or v.Name == LP.Name or Players:GetPlayerFromCharacter(v))
+            if not isPlayer and 
+               v.Name ~= "Camera" and 
+               v.Name ~= "Terrain" and 
+               v.Name ~= "IceWalkPlatform" and 
+               not saved[v] then
+                v:Destroy()
             end
-        end
+        end)
     end
 end
-print("🗑️ Map Deleted.")
+
 
 
  
