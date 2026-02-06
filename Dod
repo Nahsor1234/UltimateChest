@@ -483,60 +483,87 @@ end
 
 
 
--- [7] ULTRA FAST MODE (Shortened & Optimized)
 local function ApplyUltraFastMode()
     if not Config.UltraFastMode then return end
-    
-    -- [1] NUKE VISUALS & TERRAIN (Stops rendering far islands)
     pcall(function()
-        local L, T = game:GetService("Lighting"), workspace.Terrain
-        L.GlobalShadows, L.FogEnd, L.Brightness = false, 9e9, 0
-        settings().Rendering.QualityLevel = 1
-        for _,v in pairs(L:GetChildren()) do v:Destroy() end
-        T:Clear() -- [CRITICAL] Deletes all water & islands instantly
-    end)
-
-    -- [2] ICE KING PROTOCOL
-    local P, RS, W = game:GetService("Players"), game:GetService("RunService"), workspace
-    local LP, Ice = P.LocalPlayer, Instance.new("Part")
-    
-    print("\n--- ❄️ ACTIVATING ICE WALK ---")
-    Ice.Name, Ice.Anchored, Ice.CanCollide, Ice.Transparency = "IceWalkPlatform", true, true, 0.5
-    Ice.Size, Ice.Color, Ice.Parent = Vector3.new(50, 1, 50), Color3.fromRGB(0, 255, 255), W
-
-    RS.RenderStepped:Connect(function()
-        if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-            local r = LP.Character.HumanoidRootPart
-            Ice.CFrame = CFrame.new(r.Position.X, 4, r.Position.Z) -- Lock to Sea Level (4)
-            if r.Position.Y < -5 then r.CFrame = r.CFrame + Vector3.new(0, 10, 0) end
+        local L = game:GetService("Lighting")
+        L.GlobalShadows,L.FogEnd,L.Brightness = false,9e9,0.4
+        L.Ambient,L.OutdoorAmbient = Color3.new(0,0,0),Color3.new(0,0,0)
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        for _,v in pairs(L:GetChildren()) do if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end end
+        local function Clear(v)
+            if v:IsA("BasePart") then v.Material,v.CastShadow = Enum.Material.SmoothPlastic,false
+            elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Beam") then v:Destroy()
+            elseif v:IsA("PointLight") or v:IsA("SurfaceLight") or v:IsA("SpotLight") then v:Destroy()
+            elseif v:IsA("Sound") then v:Destroy() end
         end
+        local allDescendants = workspace:GetDescendants()
+        local chunkSize = 200
+        for i = 1,#allDescendants,chunkSize do
+            for j = i,math.min(i+chunkSize-1,#allDescendants) do Clear(allDescendants[j]) end
+        end
+        workspace.DescendantAdded:Connect(Clear)
     end)
-    task.wait(0.2) -- Safety wait for ice
 
-    -- [3] RESCUE ITEMS & NUKE MAP
-    print("📦 Cleaning Map...")
-    local Rescued = {}
-    
-    -- A. Rescue (Find Chests/Fruit and move to safe Workspace root)
-    for _,v in pairs(W:GetDescendants()) do
-        if v.Name:find("Chest") or v.Name:find("Fruit") or v.Name:find("Box") then
-            if not (v.Parent.Name:find("Chest") or v.Parent.Name:find("Fruit")) then
-                v.Parent = W
+    local Players,RnSrv = game:GetService("Players"),game:GetService("RunService")
+    local LP,TARGET_FOLDER = Players.LocalPlayer,workspace:FindFirstChild("Map") or workspace
+    local SEA_LEVEL,PLATFORM_SIZE = 4,15
+
+    local function ActivateIceWalk()
+        local IcePart = Instance.new("Part")
+        IcePart.Name,IcePart.Parent = "IceWalkPlatform",workspace
+        IcePart.Anchored,IcePart.CanCollide = true,true
+        IcePart.Color,IcePart.Material,IcePart.Transparency = Color3.fromRGB(0,255,255),Enum.Material.Ice,0.3
+        IcePart.Size = Vector3.new(PLATFORM_SIZE,1,PLATFORM_SIZE)
+        RnSrv.RenderStepped:Connect(function()
+            if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                local root = LP.Character.HumanoidRootPart
+                IcePart.CFrame = CFrame.new(root.Position.X,SEA_LEVEL,root.Position.Z)
+                if root.Position.Y < (SEA_LEVEL - 5) then
+                    root.CFrame,root.Velocity = CFrame.new(root.Position.X,SEA_LEVEL + 5,root.Position.Z),Vector3.zero
+                end
+            end
+        end)
+    end
+
+    ActivateIceWalk()
+    task.wait(0.5)
+
+    local rescued = 0
+    for _,v in pairs(TARGET_FOLDER:GetDescendants()) do
+        local n = v.Name
+        if n:find("Chest") or n:find("Box") or n:find("Fruit") then
+            if not (v.Parent.Name:find("Chest") or v.Parent.Name:find("Fruit")) then 
+                v.Parent = workspace
                 if v:IsA("BasePart") then v.Anchored = true end
-                table.insert(Rescued, v)
+                if v:IsA("Model") then 
+                    local pp = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
+                    if pp then pp.Anchored = true end
+                end
+                rescued = rescued + 1
             end
         end
     end
-    task.wait(0.1)
 
-    -- B. Nuke (Destroy everything else)
-    for _,v in pairs(W:GetChildren()) do
-        if v ~= Ice and v.Name ~= "Camera" and not P:GetPlayerFromCharacter(v) and not table.find(Rescued, v) then
-            pcall(function() v:Destroy() end)
+    if workspace:FindFirstChild("Map") then
+        workspace.Map:Destroy()
+    else
+        for _,v in pairs(workspace:GetChildren()) do
+            local n = v.Name
+            if n ~= "Camera" and n ~= "Terrain" and n ~= "IceWalkPlatform" and not Players:GetPlayerFromCharacter(v) then
+                if not (n:find("Chest") or n:find("Fruit")) then
+                    pcall(function() v:Destroy() end)
+                end
+            end
         end
     end
+
+    -- Memory Cleanup Trigger (Added)
+    task.wait(1)
+    for i=1,5 do task.wait(0.1) collectgarbage("step") end
 end
-        
+
     
 
 
