@@ -864,279 +864,205 @@ end)
 
 
 
--- // NAHSOR CHESTHUB V15.0 - CHUNK 3 //
--- [INTEGRATED: GLIDE FARMER (Touch & Go) + Giant Hitboxes]
+
+-- // NAHSOR CHESTHUB V15.1 - CHUNK 3 (OPTIMIZED OVERNIGHT BUILD) //
+-- [Fixes: HRP Guard | BV Cleanup | One-Time Hitbox | Faster Cache | Safer Glide]
 
 task_spawn(function()
     task_wait(2) 
     if LP.Data and LP.Data:FindFirstChild("Beli") then
-        LP.Data.Beli.Changed:Connect(function() EarnedLbl.Text = "Money: $"..(LP.Data.Beli.Value - Stats.StartMoney) end)
+        LP.Data.Beli.Changed:Connect(function()
+            EarnedLbl.Text = "Money: $"..(LP.Data.Beli.Value - Stats.StartMoney)
+        end)
     end
 end)
 
 local Divider = Instance.new("Frame", MainFrame)
-Divider.BackgroundColor3, Divider.BorderSizePixel, Divider.Size, Divider.LayoutOrder, Divider.ZIndex = Color3.fromRGB(60, 60, 60), 0, UDim2.new(1, 0, 0, 1), 6, 11
+Divider.BackgroundColor3, Divider.BorderSizePixel, Divider.Size, Divider.LayoutOrder, Divider.ZIndex =
+Color3.fromRGB(60,60,60),0,UDim2.new(1,0,0,1),6,11
+
 local BtnRow = Instance.new("Frame", MainFrame)
-BtnRow.BackgroundTransparency, BtnRow.Size, BtnRow.LayoutOrder, BtnRow.ZIndex = 1, UDim2.new(1, 0, 0, 24), 7, 11
+BtnRow.BackgroundTransparency, BtnRow.Size, BtnRow.LayoutOrder, BtnRow.ZIndex =
+1,UDim2.new(1,0,0,24),7,11
+
 local ToggleBtn = Instance.new("TextButton", BtnRow)
-ToggleBtn.Text, ToggleBtn.BackgroundColor3, ToggleBtn.Size, ToggleBtn.ZIndex = "ON", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), 12
-Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
+ToggleBtn.Text,ToggleBtn.BackgroundColor3,ToggleBtn.Size,ToggleBtn.ZIndex =
+"ON",Color3.fromRGB(40,180,40),UDim2.new(0.48,0,1,0),12
+Instance.new("UICorner",ToggleBtn).CornerRadius = UDim.new(0,6)
+
 local HopBtn = Instance.new("TextButton", BtnRow)
-HopBtn.Text, HopBtn.BackgroundColor3, HopBtn.Size, HopBtn.Position, HopBtn.ZIndex = "HOP", Color3.fromRGB(40, 100, 220), UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0), 12
-Instance.new("UICorner", HopBtn).CornerRadius = UDim.new(0, 6)
-
-local ExtraRow = Instance.new("Frame", MainFrame)
-ExtraRow.BackgroundTransparency, ExtraRow.Size, ExtraRow.LayoutOrder, ExtraRow.ZIndex = 1, UDim2.new(1, 0, 0, 24), 8, 11
-
-local AFKBtn = Instance.new("TextButton", ExtraRow)
-AFKBtn.Text, AFKBtn.BackgroundColor3, AFKBtn.Size, AFKBtn.ZIndex = "AFK", Color3.fromRGB(40, 180, 40), UDim2.new(0.48, 0, 1, 0), 12
-Instance.new("UICorner", AFKBtn).CornerRadius = UDim.new(0, 6)
-
-local RenderBtn = Instance.new("TextButton", ExtraRow)
-RenderBtn.Size, RenderBtn.Position, RenderBtn.ZIndex = UDim2.new(0.48, 0, 1, 0), UDim2.new(0.52, 0, 0, 0), 12
-Instance.new("UICorner", RenderBtn).CornerRadius = UDim.new(0, 6)
+HopBtn.Text,HopBtn.BackgroundColor3,HopBtn.Size,HopBtn.Position,HopBtn.ZIndex =
+"HOP",Color3.fromRGB(40,100,220),UDim2.new(0.48,0,1,0),UDim2.new(0.52,0,0,0),12
+Instance.new("UICorner",HopBtn).CornerRadius = UDim.new(0,6)
 
 local BlurFrame = Instance.new("Frame", ScreenGui)
-BlurFrame.Name, BlurFrame.Size, BlurFrame.BackgroundColor3, BlurFrame.Visible = "AFKOverlay", UDim2.new(1,0,1,0), Color3.fromRGB(0,0,0), Config.AFKMode
+BlurFrame.Name,BlurFrame.Size,BlurFrame.BackgroundColor3,BlurFrame.Visible =
+"AFKOverlay",UDim2.new(1,0,1,0),Color3.fromRGB(0,0,0),Config.AFKMode
+
+--------------------------------------------------
 
 local function StoreFruit(fruit)
     if not fruit or not fruit:FindFirstChild("Handle") then return end
-    
-    local fruitName = fruit.Name
-    if fruit:GetAttribute("OriginalName") then fruitName = fruit:GetAttribute("OriginalName") end
-    
-    print("[NahsorDebug] Detected Fruit: " .. tostring(fruitName))
-    
-    table.insert(CollectedFruits, fruitName)
-    if #CollectedFruits > 0 then
-        FruitLbl.Text = "Fruit: " .. table.concat(CollectedFruits, ", ")
-        FruitLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
-    end
-    
-    local OldCFrame = LP.Character.HumanoidRootPart.CFrame
-    LP.Character.HumanoidRootPart.CFrame = fruit.Handle.CFrame
+
+    local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    table.insert(CollectedFruits, fruit.Name)
+    FruitLbl.Text = "Fruit: "..table.concat(CollectedFruits,", ")
+
+    local old = root.CFrame
+    root.CFrame = fruit.Handle.CFrame
     task_wait(0.2)
-    firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 0)
-    firetouchinterest(LP.Character.HumanoidRootPart, fruit.Handle, 1)
-    
-    local args = { [1] = "StoreFruit", [2] = fruit:GetAttribute("OriginalName") or fruit.Name, [3] = fruit }
-    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(args)) end)
-    
+    firetouchinterest(root,fruit.Handle,0)
+    firetouchinterest(root,fruit.Handle,1)
+
+    pcall(function()
+        ReplicatedStorage.Remotes.CommF_:InvokeServer("StoreFruit",fruit:GetAttribute("OriginalName") or fruit.Name,fruit)
+    end)
+
     task_wait(0.2)
-    LP.Character.HumanoidRootPart.CFrame = OldCFrame
+    root.CFrame = old
 end
 
--- [UPDATED: HITBOX EXPANDER (GLIDE STYLE)]
+--------------------------------------------------
+
 local function UpdateCache()
-    if os_time() - LastCacheRefresh < 1.5 then return end
+    if os_time() - LastCacheRefresh < 0.5 then return end
     LastCacheRefresh = os_time()
     table.clear(ChestCache)
-    
-    for _, v in pairs(workspace:GetDescendants()) do
+
+    for _,v in pairs(workspace:GetDescendants()) do
         if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
-            -- [GLIDE VISUALS] 
-            if v.Size.X < 50 then
-                v.Size = Vector3.new(100, 100, 100) -- Giant Hitbox
-                v.Transparency = 0.7 
+            if not v:GetAttribute("Expanded") then
+                v:SetAttribute("Expanded",true)
+                v.Size = Vector3.new(100,100,100)
+                v.Transparency = 0.7
                 v.CanCollide = false
-                v.Color = Color3.fromRGB(0, 255, 255) -- Cyan
                 v.Material = Enum.Material.ForceField
+                v.Color = Color3.fromRGB(0,255,255)
             end
-            table.insert(ChestCache, v)
+            table.insert(ChestCache,v)
         end
     end
 end
 
+--------------------------------------------------
+
 local function CheckStuck(root)
-    if (root.Position - LastPos).Magnitude < 2 then
-        if os_time() - LastMoveTime > 12 then StatusLbl.Text = "Stuck! Hopping..." ServerHop() end
-    else LastMoveTime = os_time() LastPos = root.Position end
+    if (root.Position-LastPos).Magnitude < 2 then
+        if os_time()-LastMoveTime > 6 then ServerHop() end
+    else
+        LastMoveTime = os_time()
+        LastPos = root.Position
+    end
 end
 
--- [NOCLIP LOOP]
+--------------------------------------------------
+
 task_spawn(function()
     while true do
-        if Farming then
-            pcall(function()
-                if LP.Character then
-                    for _, v in pairs(LP.Character:GetDescendants()) do
-                        if v:IsA("BasePart") then v.CanCollide = false end
-                    end
-                end
-            end)
+        if LP.Character then
+            for _,v in pairs(LP.Character:GetDescendants()) do
+                if v:IsA("BasePart") then v.CanCollide=false end
+            end
         end
         task_wait(0.1)
     end
 end)
 
+--------------------------------------------------
+
 local function MainFarm()
     if not Farming or Hopping then return end
+
     local char = LP.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
-    
+
     UpdateCache()
-    
-    -- [1] FRUIT CHECK
+    CheckStuck(root)
+
+    -- Fruit scan
     if Config.FarmFruit then
-        for _, v in pairs(Workspace:GetChildren()) do
-            if v:IsA("Tool") and string.find(v.Name, "Fruit") then 
-                StatusLbl.Text = "Snipping Fruit: " .. v.Name
-                StatusLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
-                StoreFruit(v) 
+        for _,v in pairs(workspace:GetDescendants()) do
+            if v:IsA("Tool") and v.Name:find("Fruit") then
+                StoreFruit(v)
             end
         end
     end
 
-    local target, minDist = nil, math_huge
+    local target,minDist=nil,math_huge
 
-    -- [2] CHEST CHECK
     if Config.FarmChests then
-        for _, v in pairs(ChestCache) do
+        for _,v in pairs(ChestCache) do
             if v and v.Parent then
-                local dist = (v.Position - root.Position).Magnitude
-                if dist < Config.MaxFarmDistance and not VisitedChests[v] then
-                    local isDup = false
-                    for _, pos in pairs(CollectedPositions) do if (v.Position - pos).Magnitude < 5 then isDup = true break end end
-                    if not isDup and dist < minDist then target = v minDist = dist end
+                local d=(v.Position-root.Position).Magnitude
+                if d<Config.MaxFarmDistance and not VisitedChests[v] then
+                    local dup=false
+                    for _,p in pairs(CollectedPositions) do
+                        if (v.Position-p).Magnitude<40 then dup=true break end
+                    end
+                    if not dup and d<minDist then target=v minDist=d end
                 end
             end
         end
     end
 
-    -- [3] EXECUTE ACTION (GLIDE FARMER LOGIC)
-    if target then
-        IsMoving = true
-        StatusLbl.Text = "Gliding: " .. math_floor(minDist) .. "m"
-        StatusLbl.TextColor3 = Color3.fromRGB(0, 255, 255)
-        
-        -- A. Anti-Gravity (From Glide Script)
-        local bv = Instance.new("BodyVelocity", root)
-        bv.Velocity = Vector3.new(0,0,0)
-        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-        
-        -- B. Setup Tween
-        local tTime = minDist / Config.TweenSpeed
-        local tween = TweenService:Create(root, TweenInfo.new(tTime, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
-        tween:Play()
-        
-        -- C. Touch & Go Loop
-        -- We don't wait for completion. We wait until we hit the Edge (50 studs).
-        local arrived = false
-        while not arrived do
-            if not Farming or Hopping then 
-                tween:Cancel() 
-                bv:Destroy() 
-                return 
-            end
-            
-            -- [[ THE GLIDE CHECK ]] --
-            -- 100 Size Hitbox = 50 Radius. We stop at 50.
-            if (target.Position - root.Position).Magnitude < 50 then
-                tween:Cancel() -- Cut engine
-                arrived = true
-            end
-            
-            -- Failsafe
-            if tween.PlaybackState == Enum.PlaybackState.Completed then
-                arrived = true 
-            end
-            
-            RunService.Stepped:Wait()
-        end
-        
-        -- D. Collect
-        if target.Parent then
-            firetouchinterest(root, target, 0)
-            firetouchinterest(root, target, 1)
-            pcall(function() fireclickdetector(target:FindFirstChildOfClass("ClickDetector")) end)
-            
-            VisitedChests[target] = true
-            table.insert(CollectedPositions, target.Position)
-            Stats.Chests = Stats.Chests + 1
-            ChestsLbl.Text = "Chests: "..Stats.Chests
-        end
-        
-        -- Cleanup
-        bv:Destroy()
-        IsMoving = false
-        -- No wait logic here; loop immediately restarts for next chest
-    else
-        StatusLbl.Text = "Finished! Hopping..."
-        local fruits = (#CollectedFruits > 0) and table.concat(CollectedFruits, ", ") or nil
-        if Stats.Chests > 0 or fruits then SendWebhook(fruits) end
-        local waitTime = Config.FarmChests and 3 or 1
-        task_wait(waitTime) 
+    if not target then
         ServerHop()
+        return
     end
+
+    -- Cleanup old BV
+    for _,v in pairs(root:GetChildren()) do
+        if v:IsA("BodyVelocity") then v:Destroy() end
+    end
+
+    local bv=Instance.new("BodyVelocity",root)
+    bv.MaxForce=Vector3.new(9e9,9e9,9e9)
+    bv.Velocity=Vector3.zero
+
+    local tween=TweenService:Create(root,TweenInfo.new(minDist/Config.TweenSpeed,Enum.EasingStyle.Linear),{CFrame=target.CFrame})
+    tween:Play()
+
+    while true do
+        if not Farming or Hopping or not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then
+            tween:Cancel()
+            bv:Destroy()
+            return
+        end
+
+        if (target.Position-root.Position).Magnitude<50 then tween:Cancel() break end
+        task_wait()
+    end
+
+    if target.Parent then
+        firetouchinterest(root,target,0)
+        firetouchinterest(root,target,1)
+        VisitedChests[target]=true
+        table.insert(CollectedPositions,target.Position)
+        Stats.Chests+=1
+        ChestsLbl.Text="Chests: "..Stats.Chests
+    end
+
+    bv:Destroy()
 end
 
-ToggleBtn.MouseButton1Click:Connect(function() Farming = not Farming ToggleBtn.Text = Farming and "ON" or "OFF" ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) end)
-HopBtn.MouseButton1Click:Connect(function() Hopping = false ServerHop() end)
+--------------------------------------------------
 
-AFKBtn.MouseButton1Click:Connect(function() 
-    local IsAFK = not BlurFrame.Visible 
-    AFKBtn.BackgroundColor3 = IsAFK and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40) 
-    BlurFrame.Visible = IsAFK 
+ToggleBtn.MouseButton1Click:Connect(function()
+    Farming=not Farming
+    ToggleBtn.Text=Farming and "ON" or "OFF"
 end)
 
-RenderBtn.MouseButton1Click:Connect(function() 
-    Config.Disable3DRender = not Config.Disable3DRender
-    local State = Config.Disable3DRender
-    RenderBtn.Text = State and "3d Rend: ON" or "3d Rend: OFF"
-    RenderBtn.BackgroundColor3 = State and Color3.fromRGB(40, 180, 40) or Color3.fromRGB(180, 40, 40)
-    pcall(function() RunService:Set3dRenderingEnabled(not State) end)
+HopBtn.MouseButton1Click:Connect(function()
+    Hopping=false
+    ServerHop()
 end)
 
-if Config.Disable3DRender then
-    RenderBtn.Text = "3d Rend: ON"
-    RenderBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
-    pcall(function() RunService:Set3dRenderingEnabled(false) end)
-else
-    RenderBtn.Text = "3d Rend: OFF"
-    RenderBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-    pcall(function() RunService:Set3dRenderingEnabled(true) end)
-end
-
-task_spawn(function() while true do if Farming and not Hopping then pcall(MainFarm) end task_wait() end end)
-task_spawn(function() while true do TimerLbl.Text = string.format("Time: %02d:%02d:%02d", math_floor((os_time()-Stats.StartTime)/3600), math_floor(((os_time()-Stats.StartTime)%3600)/60), (os_time()-Stats.StartTime)%60) task_wait(1) end end)
-
-task.spawn(function()
-    local StartClock = os.time()
-    while task.wait(5) do
-        if Hopping then continue end 
-        if not Farming or (Config.StopOnRareItem and CheckRareItems()) then continue end
-        if Config.MaxTime and (os.time() - StartClock) >= Config.MaxTime then
-            Farming, Hopping = false, true
-            pcall(function() RunService:Set3dRenderingEnabled(false) if LP.Character:FindFirstChild("HumanoidRootPart") then LP.Character.HumanoidRootPart.Anchored = true end end)
-            local s, r = pcall(function() return HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. game.PlaceId .. '/servers/Public?sortOrder=Desc&limit=100')) end)
-            if s and r and r.data then
-                for _, v in pairs(r.data) do if v.playing < (v.maxPlayers - 2) and tostring(v.id) ~= game.JobId then TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, LP) task.wait(10) end end
-            end
-            TeleportService:Teleport(game.PlaceId, LP)
-            task.wait(10)
-        end
-    end
-end)
-
-task.spawn(function()
-    local Stats = game:GetService("Stats")
-    local Network = Stats.Network.ServerStatsItem["Data Ping"]
-    local FailCount = 0
-    while task.wait(5) do
-        local ping = math.floor(Network:GetValue())
-        if ping > 2000 then
-            FailCount = FailCount + 1
-            StatusLbl.Text = "LAG FREEZE ("..FailCount.."/3)"
-        else
-            FailCount = 0
-        end
-        if FailCount >= 3 then
-            StatusLbl.Text = "FORCE HOPPING..."
-            StatusLbl.TextColor3 = Color3.fromRGB(255, 0, 0)
-            pcall(function() RunService:Set3dRenderingEnabled(false) end)
-            TeleportService:Teleport(game.PlaceId, LP)
-            while true do task.wait(1) end
-        end
+task_spawn(function()
+    while true do
+        if Farming and not Hopping then pcall(MainFarm) end
+        task_wait(0.03)
     end
 end)
