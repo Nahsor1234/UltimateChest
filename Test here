@@ -867,94 +867,128 @@ end)
 
 
 
+-- // NAHSOR CHESTHUB V15.0 - CHUNK 3 (PATCHED STABILITY BUILD) //
+-- [PATCHES: HRP Guard | BV Cleanup | One-Time Hitbox | Faster Cache | Duplicate Radius | Loop Throttle]
 
--- // NAHSOR CHESTHUB V15.3 - CHUNK 3 (SYNCED WITH CORE) //
-
-Farming = true -- CRITICAL START FIX
-
---------------------------------------------------
--- UI STATE SYNC
---------------------------------------------------
-
-local function SyncRenderBtn()
-    local s = Config.Disable3DRender
-    RenderBtn.Text = s and "3D ON" or "3D OFF"
-    RenderBtn.BackgroundColor3 = s and Color3.fromRGB(40,180,40) or Color3.fromRGB(180,40,40)
-end
-
-SyncRenderBtn()
-
-ToggleBtn.Text = Farming and "ON" or "OFF"
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(40,180,40)
-
---------------------------------------------------
--- BUTTONS
---------------------------------------------------
-
-ToggleBtn.MouseButton1Click:Connect(function()
-    Farming = not Farming
-    ToggleBtn.Text = Farming and "ON" or "OFF"
-    ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40,180,40) or Color3.fromRGB(180,40,40)
-end)
-
-AFKBtn.MouseButton1Click:Connect(function()
-    BlurFrame.Visible = not BlurFrame.Visible
-    AFKBtn.BackgroundColor3 = BlurFrame.Visible and Color3.fromRGB(40,180,40) or Color3.fromRGB(180,40,40)
-end)
-
-RenderBtn.MouseButton1Click:Connect(function()
-    Config.Disable3DRender = not Config.Disable3DRender
-    pcall(function() RunService:Set3dRenderingEnabled(not Config.Disable3DRender) end)
-    SyncRenderBtn()
+task_spawn(function()
+    task_wait(2) 
+    if LP.Data and LP.Data:FindFirstChild("Beli") then
+        LP.Data.Beli.Changed:Connect(function()
+            EarnedLbl.Text = "Money: $"..(LP.Data.Beli.Value - Stats.StartMoney)
+        end)
+    end
 end)
 
 --------------------------------------------------
--- DEEP CLEAN SYSTEM (ONLY IF REQUIRED)
---------------------------------------------------
 
-local function DeepClean()
-    if not Config.Disable3DRender and not Config.UltraFastMode then return end
+local function UpdateCache()
+    if os_time() - LastCacheRefresh < 0.5 then return end -- PATCH
+    LastCacheRefresh = os_time()
+    table.clear(ChestCache)
 
-    StatusLbl.Text = "Deep Cleaning..."
+    for _, v in pairs(workspace:GetDescendants()) do
+        if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
+            
+            -- PATCH: Expand once
+            if v.Size.X < 50 and not v:GetAttribute("Expanded") then
+                v:SetAttribute("Expanded",true)
+                v.Size = Vector3.new(100,100,100)
+                v.Transparency = 0.7
+                v.CanCollide = false
+                v.Color = Color3.fromRGB(0,255,255)
+                v.Material = Enum.Material.ForceField
+            end
 
-    pcall(function()
-        table.clear(ChestCache)
-        table.clear(VisitedChests)
-        table.clear(CollectedPositions)
-    end)
-
-    for i=1,3 do
-        collectgarbage("collect")
-        task.wait(0.3)
+            table.insert(ChestCache,v)
+        end
     end
 end
 
 --------------------------------------------------
--- HOP VISUAL FIX + CLEAN (HOOK INTO EXISTING STATE)
+
+local function CheckStuck(root)
+    if (root.Position - LastPos).Magnitude < 2 then
+        if os_time() - LastMoveTime > 6 then ServerHop() end -- PATCH
+    else
+        LastMoveTime = os_time()
+        LastPos = root.Position
+    end
+end
+
 --------------------------------------------------
 
-task.spawn(function()
-    while true do
-        if Hopping then
-            -- Enable 3D during cooldown
-            pcall(function() RunService:Set3dRenderingEnabled(true) end)
+local function MainFarm()
+    if not Farming or Hopping then return end
+    local char = LP.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
 
-            task.wait(2)
+    UpdateCache()
+    CheckStuck(root)
 
-            -- Last 3 seconds deep clean
-            DeepClean()
+    local target, minDist = nil, math_huge
 
-            -- Return to headless
-            if Config.Disable3DRender then
-                pcall(function() RunService:Set3dRenderingEnabled(false) end)
+    for _, v in pairs(ChestCache) do
+        if v and v.Parent then
+            local dist = (v.Position - root.Position).Magnitude
+            if dist < Config.MaxFarmDistance and not VisitedChests[v] then
+                local dup = false
+                for _, pos in pairs(CollectedPositions) do
+                    if (v.Position - pos).Magnitude < 40 then dup = true break end -- PATCH
+                end
+                if not dup and dist < minDist then
+                    target = v
+                    minDist = dist
+                end
             end
         end
-        task.wait(1)
     end
-end)
 
---------------------------------------------------
--- MAIN LOOP
+    if not target then
+        ServerHop()
+        return
+    end
+
+    -- PATCH: Remove old BodyVelocity
+    for _,v in pairs(root:GetChildren()) do
+        if v:IsA("BodyVelocity") then v:Destroy() end
+    end
+
+    local bv = Instance.new("BodyVelocity", root)
+    bv.MaxForce = Vector3.new(9e9,9e9,9e9)
+    bv.Velocity = Vector3.zero
+
+    local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+    tween:Play()
+
+    while true do
+        -- PATCH: HRP Guard
+        if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then
+            tween:Cancel()
+            bv:Destroy()
+            return
+        end
+
+        if (target.Position - root.Position).Magnitude < 50 then
+            tween:Cancel()
+            break
+        end
+
+        task_wait()
+    end
+
+    if target.Parent then
+        firetouchinterest(root,target,0)
+        firetouchinterest(root,target,1)
+        VisitedChests[target] = true
+        table.insert(CollectedPositions,target.Position)
+        Stats.Chests += 1
+        ChestsLbl.Text = "Chests: "..Stats.Chests
+    end
+
+    bv:Destroy()
+end
+
 --------------------------------------------------
 
 task_spawn(function()
@@ -962,6 +996,6 @@ task_spawn(function()
         if Farming and not Hopping then
             pcall(MainFarm)
         end
-        task_wait(0.03)
+        task_wait(0.03) -- PATCH
     end
 end)
