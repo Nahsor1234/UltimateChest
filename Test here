@@ -867,29 +867,47 @@ end)
 
 
 
--- // NAHSOR CHESTHUB V15.0 - CHUNK 3 (PATCHED STABILITY BUILD) //
--- [PATCHES: HRP Guard | BV Cleanup | One-Time Hitbox | Faster Cache | Duplicate Radius | Loop Throttle]
 
-task_spawn(function()
-    task_wait(2) 
-    if LP.Data and LP.Data:FindFirstChild("Beli") then
-        LP.Data.Beli.Changed:Connect(function()
-            EarnedLbl.Text = "Money: $"..(LP.Data.Beli.Value - Stats.StartMoney)
-        end)
-    end
-end)
+-- // NAHSOR CHESTHUB V15.0 - CHUNK 3 [CORRECTED + FEATURE PATCH] //
+
+local function DeepClean()
+    if not (Config.UltraFastMode or Config.Disable3DRender) then return end
+    StatusLbl.Text = "Deep Cleaning..."
+    table.clear(ChestCache)
+    table.clear(VisitedChests)
+    table.clear(CollectedPositions)
+    for i=1,3 do collectgarbage("collect") task.wait(0.3) end
+end
+
+--------------------------------------------------
+
+local OldServerHop = ServerHop
+ServerHop = function(...)
+    -- Enable 3D during cooldown
+    pcall(function() RunService:Set3dRenderingEnabled(true) end)
+
+    task.delay(1,function()
+        DeepClean()
+    end)
+
+    task.delay(3,function()
+        if Config.Disable3DRender then
+            pcall(function() RunService:Set3dRenderingEnabled(false) end)
+        end
+    end)
+
+    return OldServerHop(...)
+end
 
 --------------------------------------------------
 
 local function UpdateCache()
-    if os_time() - LastCacheRefresh < 0.5 then return end -- PATCH
+    if os_time() - LastCacheRefresh < 0.5 then return end
     LastCacheRefresh = os_time()
     table.clear(ChestCache)
 
     for _, v in pairs(workspace:GetDescendants()) do
         if (v.Name:find("Chest") or v.Name:find("Box")) and v:IsA("Part") then
-            
-            -- PATCH: Expand once
             if v.Size.X < 50 and not v:GetAttribute("Expanded") then
                 v:SetAttribute("Expanded",true)
                 v.Size = Vector3.new(100,100,100)
@@ -898,20 +916,8 @@ local function UpdateCache()
                 v.Color = Color3.fromRGB(0,255,255)
                 v.Material = Enum.Material.ForceField
             end
-
             table.insert(ChestCache,v)
         end
-    end
-end
-
---------------------------------------------------
-
-local function CheckStuck(root)
-    if (root.Position - LastPos).Magnitude < 2 then
-        if os_time() - LastMoveTime > 6 then ServerHop() end -- PATCH
-    else
-        LastMoveTime = os_time()
-        LastPos = root.Position
     end
 end
 
@@ -924,22 +930,18 @@ local function MainFarm()
     if not root then return end
 
     UpdateCache()
-    CheckStuck(root)
 
-    local target, minDist = nil, math_huge
+    local target,minDist=nil,math_huge
 
-    for _, v in pairs(ChestCache) do
+    for _,v in pairs(ChestCache) do
         if v and v.Parent then
-            local dist = (v.Position - root.Position).Magnitude
-            if dist < Config.MaxFarmDistance and not VisitedChests[v] then
-                local dup = false
-                for _, pos in pairs(CollectedPositions) do
-                    if (v.Position - pos).Magnitude < 40 then dup = true break end -- PATCH
+            local d=(v.Position-root.Position).Magnitude
+            if d<Config.MaxFarmDistance and not VisitedChests[v] then
+                local dup=false
+                for _,p in pairs(CollectedPositions) do
+                    if (v.Position-p).Magnitude<20 then dup=true break end
                 end
-                if not dup and dist < minDist then
-                    target = v
-                    minDist = dist
-                end
+                if not dup and d<minDist then target=v minDist=d end
             end
         end
     end
@@ -949,41 +951,41 @@ local function MainFarm()
         return
     end
 
-    -- PATCH: Remove old BodyVelocity
+    -- BV cleanup
     for _,v in pairs(root:GetChildren()) do
         if v:IsA("BodyVelocity") then v:Destroy() end
     end
 
-    local bv = Instance.new("BodyVelocity", root)
-    bv.MaxForce = Vector3.new(9e9,9e9,9e9)
-    bv.Velocity = Vector3.zero
+    local bv=Instance.new("BodyVelocity",root)
+    bv.MaxForce=Vector3.new(9e9,9e9,9e9)
+    bv.Velocity=Vector3.zero
 
-    local tween = TweenService:Create(root, TweenInfo.new(minDist/Config.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = target.CFrame})
+    local tween=TweenService:Create(root,TweenInfo.new(minDist/Config.TweenSpeed,Enum.EasingStyle.Linear),{CFrame=target.CFrame})
     tween:Play()
 
-    while true do
-        -- PATCH: HRP Guard
-        if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then
+    local arrived=false
+    while not arrived do
+        if not Farming or Hopping then
             tween:Cancel()
             bv:Destroy()
             return
         end
 
-        if (target.Position - root.Position).Magnitude < 50 then
+        if (target.Position-root.Position).Magnitude<50 then
             tween:Cancel()
-            break
+            arrived=true
         end
 
-        task_wait()
+        RunService.Stepped:Wait() -- CRITICAL RESTORE
     end
 
     if target.Parent then
         firetouchinterest(root,target,0)
         firetouchinterest(root,target,1)
-        VisitedChests[target] = true
+        VisitedChests[target]=true
         table.insert(CollectedPositions,target.Position)
-        Stats.Chests += 1
-        ChestsLbl.Text = "Chests: "..Stats.Chests
+        Stats.Chests+=1
+        ChestsLbl.Text="Chests: "..Stats.Chests
     end
 
     bv:Destroy()
@@ -993,9 +995,7 @@ end
 
 task_spawn(function()
     while true do
-        if Farming and not Hopping then
-            pcall(MainFarm)
-        end
-        task_wait(0.03) -- PATCH
+        if Farming and not Hopping then pcall(MainFarm) end
+        task_wait(0.03)
     end
 end)
