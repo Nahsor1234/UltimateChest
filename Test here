@@ -868,81 +868,33 @@ end)
 
 
 
--- // NAHSOR CHESTHUB V15.2 - CHUNK 3 (FULL UI + OPTIMIZED FARM) //
+-- // NAHSOR CHESTHUB V15.3 - CHUNK 3 (SYNCED WITH CORE) //
 
-task_spawn(function()
-    task_wait(2)
-    if LP.Data and LP.Data:FindFirstChild("Beli") then
-        LP.Data.Beli.Changed:Connect(function()
-            EarnedLbl.Text = "Money: $"..(LP.Data.Beli.Value - Stats.StartMoney)
-        end)
-    end
-end)
+Farming = true -- CRITICAL START FIX
 
-local Divider = Instance.new("Frame", MainFrame)
-Divider.BackgroundColor3 = Color3.fromRGB(60,60,60)
-Divider.BorderSizePixel = 0
-Divider.Size = UDim2.new(1,0,0,1)
-Divider.LayoutOrder = 6
-Divider.ZIndex = 11
+--------------------------------------------------
+-- UI STATE SYNC
+--------------------------------------------------
 
-local BtnRow = Instance.new("Frame", MainFrame)
-BtnRow.BackgroundTransparency = 1
-BtnRow.Size = UDim2.new(1,0,0,24)
-BtnRow.LayoutOrder = 7
-BtnRow.ZIndex = 11
+local function SyncRenderBtn()
+    local s = Config.Disable3DRender
+    RenderBtn.Text = s and "3D ON" or "3D OFF"
+    RenderBtn.BackgroundColor3 = s and Color3.fromRGB(40,180,40) or Color3.fromRGB(180,40,40)
+end
 
-local ToggleBtn = Instance.new("TextButton", BtnRow)
-ToggleBtn.Text = "ON"
+SyncRenderBtn()
+
+ToggleBtn.Text = Farming and "ON" or "OFF"
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(40,180,40)
-ToggleBtn.Size = UDim2.new(0.48,0,1,0)
-ToggleBtn.ZIndex = 12
-Instance.new("UICorner",ToggleBtn).CornerRadius = UDim.new(0,6)
 
-local HopBtn = Instance.new("TextButton", BtnRow)
-HopBtn.Text = "HOP"
-HopBtn.BackgroundColor3 = Color3.fromRGB(40,100,220)
-HopBtn.Size = UDim2.new(0.48,0,1,0)
-HopBtn.Position = UDim2.new(0.52,0,0,0)
-HopBtn.ZIndex = 12
-Instance.new("UICorner",HopBtn).CornerRadius = UDim.new(0,6)
-
-local ExtraRow = Instance.new("Frame", MainFrame)
-ExtraRow.BackgroundTransparency = 1
-ExtraRow.Size = UDim2.new(1,0,0,24)
-ExtraRow.LayoutOrder = 8
-ExtraRow.ZIndex = 11
-
-local AFKBtn = Instance.new("TextButton", ExtraRow)
-AFKBtn.Text = "AFK"
-AFKBtn.BackgroundColor3 = Color3.fromRGB(40,180,40)
-AFKBtn.Size = UDim2.new(0.48,0,1,0)
-AFKBtn.ZIndex = 12
-Instance.new("UICorner",AFKBtn).CornerRadius = UDim.new(0,6)
-
-local RenderBtn = Instance.new("TextButton", ExtraRow)
-RenderBtn.Size = UDim2.new(0.48,0,1,0)
-RenderBtn.Position = UDim2.new(0.52,0,0,0)
-RenderBtn.ZIndex = 12
-Instance.new("UICorner",RenderBtn).CornerRadius = UDim.new(0,6)
-
-local BlurFrame = Instance.new("Frame", ScreenGui)
-BlurFrame.Name = "AFKOverlay"
-BlurFrame.Size = UDim2.new(1,0,1,0)
-BlurFrame.BackgroundColor3 = Color3.fromRGB(0,0,0)
-BlurFrame.Visible = Config.AFKMode
-
+--------------------------------------------------
+-- BUTTONS
 --------------------------------------------------
 
 ToggleBtn.MouseButton1Click:Connect(function()
     Farming = not Farming
     ToggleBtn.Text = Farming and "ON" or "OFF"
     ToggleBtn.BackgroundColor3 = Farming and Color3.fromRGB(40,180,40) or Color3.fromRGB(180,40,40)
-end)
-
-HopBtn.MouseButton1Click:Connect(function()
-    Hopping=false
-    ServerHop()
 end)
 
 AFKBtn.MouseButton1Click:Connect(function()
@@ -952,20 +904,64 @@ end)
 
 RenderBtn.MouseButton1Click:Connect(function()
     Config.Disable3DRender = not Config.Disable3DRender
-    local s = Config.Disable3DRender
-    RenderBtn.Text = s and "3D ON" or "3D OFF"
-    RenderBtn.BackgroundColor3 = s and Color3.fromRGB(40,180,40) or Color3.fromRGB(180,40,40)
-    pcall(function() RunService:Set3dRenderingEnabled(not s) end)
+    pcall(function() RunService:Set3dRenderingEnabled(not Config.Disable3DRender) end)
+    SyncRenderBtn()
 end)
 
 --------------------------------------------------
--- Farming loop remains SAME as optimized version
+-- DEEP CLEAN SYSTEM (ONLY IF REQUIRED)
+--------------------------------------------------
+
+local function DeepClean()
+    if not Config.Disable3DRender and not Config.UltraFastMode then return end
+
+    StatusLbl.Text = "Deep Cleaning..."
+
+    pcall(function()
+        table.clear(ChestCache)
+        table.clear(VisitedChests)
+        table.clear(CollectedPositions)
+    end)
+
+    for i=1,3 do
+        collectgarbage("collect")
+        task.wait(0.3)
+    end
+end
+
+--------------------------------------------------
+-- HOP VISUAL FIX + CLEAN (HOOK INTO EXISTING STATE)
+--------------------------------------------------
+
+task.spawn(function()
+    while true do
+        if Hopping then
+            -- Enable 3D during cooldown
+            pcall(function() RunService:Set3dRenderingEnabled(true) end)
+
+            task.wait(2)
+
+            -- Last 3 seconds deep clean
+            DeepClean()
+
+            -- Return to headless
+            if Config.Disable3DRender then
+                pcall(function() RunService:Set3dRenderingEnabled(false) end)
+            end
+        end
+        task.wait(1)
+    end
+end)
+
+--------------------------------------------------
+-- MAIN LOOP
 --------------------------------------------------
 
 task_spawn(function()
     while true do
-        if Farming and not Hopping then pcall(MainFarm) end
+        if Farming and not Hopping then
+            pcall(MainFarm)
+        end
         task_wait(0.03)
     end
 end)
-
